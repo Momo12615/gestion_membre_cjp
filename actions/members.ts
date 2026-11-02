@@ -5,6 +5,35 @@ import { getCurrentUserOrThrow, getMemberAccessScope, canAddMember, canDeleteMem
 import { Membre, TypeInscription } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 
+
+export async function getInscriptionsStatus(): Promise<boolean> {
+  try {
+    const res = await db.execute("SELECT value FROM app_setting WHERE key = 'inscriptions_ouvertes' LIMIT 1;");
+    if (res.rows.length === 0) return true;
+    return res.rows[0].value === "1";
+  } catch {
+    return true;
+  }
+}
+
+export async function toggleInscriptionsStatus(open: boolean): Promise<{ success: boolean; error?: string }> {
+  try {
+    const user = await getCurrentUserOrThrow();
+    if (user.permission_code !== "ADMIN") {
+      return { success: false, error: "Action réservée aux administrateurs." };
+    }
+    await db.execute({
+      sql: "INSERT INTO app_setting (key, value, updated_at) VALUES ('inscriptions_ouvertes', ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP;",
+      args: [open ? "1" : "0"],
+    });
+    revalidatePath("/admin");
+    revalidatePath("/classe");
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Erreur de mise à jour du statut des inscriptions." };
+  }
+}
+
 export async function getMembers(search?: string, typeInscription?: string): Promise<{ success: boolean; data?: Membre[]; error?: string }> {
   try {
     const user = await getCurrentUserOrThrow();
@@ -23,10 +52,11 @@ export async function getMembers(search?: string, typeInscription?: string): Pro
         m.role_club,
         m.status,
         m.type_inscription,
+        m.section,
         m.added_by,
         m.joined_at,
         CASE 
-          WHEN u_added.id IS NOT NULL THEN COALESCE(m_added.first_name || ' ' || m_added.last_name, u_added.email)
+          WHEN u_added.id IS NOT NULL THEN COALESCE(u_added.first_name || ' ' || u_added.last_name, m_added.first_name || ' ' || m_added.last_name, u_added.email)
           ELSE 'Système'
         END as added_by_name
       FROM membre m
@@ -38,8 +68,9 @@ export async function getMembers(search?: string, typeInscription?: string): Pro
 
     // Application du périmètre d'accès selon le rôle
     if (scope.type === "CLASSE") {
-      sql += " AND m.licence = ? AND m.programme = ?";
-      args.push(scope.licence, scope.programme);
+      // Règle stricte : Le chef de classe ne voit QUE les membres qu'il a lui-même inscrits ou réinscrits
+      sql += " AND m.added_by = ?";
+      args.push(scope.user_id);
     } else if (scope.type === "SELF") {
       sql += " AND m.id = ?";
       args.push(scope.member_id);
@@ -74,6 +105,7 @@ export async function getMembers(search?: string, typeInscription?: string): Pro
       role_club: (r.role_club as string) || "Membre",
       status: (r.status as "actif" | "inactif" | "suspendu") || "actif",
       type_inscription: (r.type_inscription as TypeInscription) || "inscrit",
+      section: (r.section as string) || null,
       added_by: r.added_by ? Number(r.added_by) : null,
       added_by_name: (r.added_by_name as string) || null,
       joined_at: r.joined_at as string,
@@ -103,6 +135,7 @@ export async function getMemberById(id: number): Promise<{ success: boolean; dat
         m.role_club,
         m.status,
         m.type_inscription,
+        m.section,
         m.added_by,
         m.joined_at,
         CASE 
@@ -143,6 +176,7 @@ export async function getMemberById(id: number): Promise<{ success: boolean; dat
       role_club: (r.role_club as string) || "Membre",
       status: (r.status as "actif" | "inactif" | "suspendu") || "actif",
       type_inscription: (r.type_inscription as TypeInscription) || "inscrit",
+      section: (r.section as string) || null,
       added_by: r.added_by ? Number(r.added_by) : null,
       added_by_name: (r.added_by_name as string) || null,
       joined_at: r.joined_at as string,
@@ -164,6 +198,7 @@ export interface CreateMemberInput {
   promotion?: string;
   role_club?: string;
   type_inscription: TypeInscription;
+  section?: string;
 }
 
 export async function createMember(input: CreateMemberInput): Promise<{ success: boolean; error?: string; id?: number }> {
@@ -172,6 +207,12 @@ export async function createMember(input: CreateMemberInput): Promise<{ success:
 
     if (!canAddMember(user)) {
       return { success: false, error: "Vous n'avez pas la permission d'ajouter un membre." };
+    }
+
+    // Vérification de l'ouverture de la campagne pour le chef de classe
+    const areInscriptionsOpen = await getInscriptionsStatus();
+    if (!areInscriptionsOpen && user.permission_code === "CHEF_DE_CLASSE") {
+      return { success: false, error: "La période d'inscription est actuellement clôturée par l'administrateur." };
     }
 
     let finalLicence = input.licence?.trim() || "";
@@ -195,7 +236,11 @@ export async function createMember(input: CreateMemberInput): Promise<{ success:
       return { success: false, error: "Le prénom, le nom et l'email sont obligatoires." };
     }
 
-    const typeIns: TypeInscription = input.type_inscription === "reinscrit" ? "reinscrit" : "inscrit";
+    // Règle métier CJP : Licence 1 (L1) = Inscription forcée obligatoire (pas de réinscription possible)
+    const isL1 = finalLicence.toUpperCase().includes("L1") || finalLicence.toUpperCase().includes("LICENCE 1");
+    const typeIns: TypeInscription = isL1 ? "inscrit" : (input.type_inscription === "reinscrit" ? "reinscrit" : "inscrit");
+
+    const finalSection = input.section?.trim() || "Dev Mobile & Site Web";
 
     const insertResult = await db.execute({
       sql: `
@@ -210,8 +255,9 @@ export async function createMember(input: CreateMemberInput): Promise<{ success:
           role_club,
           status,
           type_inscription,
+          section,
           added_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'actif', ?, ?);
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'actif', ?, ?, ?);
       `,
       args: [
         input.first_name.trim(),
@@ -223,6 +269,7 @@ export async function createMember(input: CreateMemberInput): Promise<{ success:
         input.promotion?.trim() || null,
         input.role_club?.trim() || "Membre",
         typeIns,
+        finalSection,
         user.id, // Trace l'identifiant du chef de classe ou admin connecté
       ],
     });
@@ -230,6 +277,7 @@ export async function createMember(input: CreateMemberInput): Promise<{ success:
     revalidatePath("/membres");
     revalidatePath("/classe");
     revalidatePath("/admin");
+    revalidatePath("/bureau");
 
     return { success: true, id: Number(insertResult.lastInsertRowid) };
   } catch (err: any) {

@@ -1,11 +1,22 @@
+import { db } from "./db";
 import { getSession } from "./auth";
-import { SessionUser, PermissionCode } from "./types";
+import { SessionUser } from "./types";
 
 export async function getCurrentUserOrThrow(): Promise<SessionUser> {
   const user = await getSession();
   if (!user) {
     throw new Error("Non autorisé. Veuillez vous connecter.");
   }
+
+  // Vérification en temps réel si le compte est actif / non bloqué par l'Admin
+  const res = await db.execute({
+    sql: "SELECT is_active FROM user WHERE id = ? LIMIT 1;",
+    args: [user.id],
+  });
+  if (res.rows.length === 0 || Number(res.rows[0].is_active) !== 1) {
+    throw new Error("Votre compte a été bloqué par l'administrateur.");
+  }
+
   return user;
 }
 
@@ -27,7 +38,7 @@ export function canViewAllMembers(user: SessionUser): boolean {
 
 export type ScopeFilter =
   | { type: "ALL" }
-  | { type: "CLASSE"; licence: string; programme: string }
+  | { type: "CLASSE"; user_id: number; licence: string; programme: string }
   | { type: "SELF"; member_id: number };
 
 export function getMemberAccessScope(user: SessionUser): ScopeFilter {
@@ -41,6 +52,7 @@ export function getMemberAccessScope(user: SessionUser): ScopeFilter {
     }
     return {
       type: "CLASSE",
+      user_id: user.id,
       licence: user.licence,
       programme: user.programme,
     };

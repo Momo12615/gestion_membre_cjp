@@ -29,6 +29,10 @@ export async function getUsers() {
       u.email, 
       u.is_active, 
       u.created_at,
+      u.first_name as u_first_name,
+      u.last_name as u_last_name,
+      u.licence as u_licence,
+      u.programme as u_programme,
       p.id as permission_id,
       p.code as permission_code,
       p.name as permission_name,
@@ -44,23 +48,30 @@ export async function getUsers() {
     ORDER BY u.created_at DESC;
   `);
 
-  return res.rows.map((r: any) => ({
-    id: Number(r.id),
-    email: r.email as string,
-    is_active: Boolean(r.is_active),
-    created_at: r.created_at as string,
-    permission_id: Number(r.permission_id),
-    permission_code: r.permission_code as PermissionCode,
-    permission_name: r.permission_name as string,
-    member_id: r.member_id ? Number(r.member_id) : null,
-    member_name: r.first_name ? `${r.first_name} ${r.last_name}` : null,
-    first_name: (r.first_name as string) || null,
-    last_name: (r.last_name as string) || null,
-    licence: (r.licence as string) || null,
-    programme: (r.programme as string) || null,
-    phone: (r.phone as string) || null,
-    classe: r.licence && r.programme ? `${r.licence} ${r.programme}` : null,
-  }));
+  return res.rows.map((r: any) => {
+    const fn = (r.u_first_name || r.first_name || null) as string | null;
+    const ln = (r.u_last_name || r.last_name || null) as string | null;
+    const lic = (r.u_licence || r.licence || null) as string | null;
+    const prog = (r.u_programme || r.programme || null) as string | null;
+
+    return {
+      id: Number(r.id),
+      email: r.email as string,
+      is_active: Boolean(r.is_active),
+      created_at: r.created_at as string,
+      permission_id: Number(r.permission_id),
+      permission_code: r.permission_code as PermissionCode,
+      permission_name: r.permission_name as string,
+      member_id: r.member_id ? Number(r.member_id) : null,
+      member_name: fn && ln ? `${fn} ${ln}` : fn || ln || null,
+      first_name: fn,
+      last_name: ln,
+      licence: lic,
+      programme: prog,
+      phone: (r.phone as string) || null,
+      classe: lic && prog ? `${lic} ${prog}` : null,
+    };
+  });
 }
 
 export async function getUserById(id: number) {
@@ -145,41 +156,36 @@ export async function createUser(data: {
   const passwordHash = await hashPassword(data.password);
 
   try {
-    // 1. Créer la fiche membre associée (notamment pour associer licence et programme pour un Chef de classe)
-    const membreRes = await db.execute({
+    // Insérer directement dans user (les comptes de gestion ne sont pas des membres adhérents)
+    await db.execute({
       sql: `
-        INSERT INTO membre (
-          first_name, last_name, email, phone, licence, programme, role_club, status, type_inscription, added_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'actif', 'inscrit', ?);
+        INSERT INTO user (
+          email,
+          password_hash,
+          permission_id,
+          is_active,
+          first_name,
+          last_name,
+          licence,
+          programme
+        ) VALUES (?, ?, ?, 1, ?, ?, ?, ?);
       `,
       args: [
+        normalizedEmail,
+        passwordHash,
+        permissionId,
         data.first_name.trim(),
         data.last_name.trim(),
-        normalizedEmail,
-        data.phone?.trim() || null,
         data.licence?.trim() || null,
         data.programme?.trim() || null,
-        data.permission_code === "CHEF_DE_CLASSE" ? "Chef de classe" : "Membre",
-        currentUser.id,
       ],
     });
 
-    const memberId = Number(membreRes.lastInsertRowid);
-
-    // 2. Créer le compte utilisateur
-    await db.execute({
-      sql: `
-        INSERT INTO user (email, password_hash, permission_id, member_id, is_active)
-        VALUES (?, ?, ?, ?, 1);
-      `,
-      args: [normalizedEmail, passwordHash, permissionId, memberId],
-    });
-
-    revalidatePath("/admin/users");
+    revalidatePath("/admin");
     return { success: true };
   } catch (err: any) {
-    if (err.message && err.message.includes("UNIQUE constraint failed")) {
-      return { success: false, error: "Un compte ou membre avec cet email existe déjà." };
+    if (err.message && err.message.includes("UNIQUE constraint failed: user.email")) {
+      return { success: false, error: "Un compte utilisateur avec cette adresse email existe déjà." };
     }
     return { success: false, error: err.message || "Erreur lors de la création du compte." };
   }

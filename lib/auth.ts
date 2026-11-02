@@ -99,12 +99,16 @@ export async function login(email: string, password: string): Promise<{ success:
           u.password_hash, 
           u.is_active, 
           u.member_id,
+          u.first_name as u_first_name,
+          u.last_name as u_last_name,
+          u.licence as u_licence,
+          u.programme as u_programme,
           p.code as permission_code, 
           p.name as permission_name,
-          m.first_name,
-          m.last_name,
-          m.licence,
-          m.programme
+          m.first_name as m_first_name,
+          m.last_name as m_last_name,
+          m.licence as m_licence,
+          m.programme as m_programme
         FROM user u
         JOIN permission p ON u.permission_id = p.id
         LEFT JOIN membre m ON u.member_id = m.id
@@ -121,7 +125,7 @@ export async function login(email: string, password: string): Promise<{ success:
     const row = result.rows[0];
 
     if (!row.is_active) {
-      return { success: false, error: "Ce compte a été désactivé par l'administrateur." };
+      return { success: false, error: "Ce compte a été bloqué ou désactivé par l'administrateur." };
     }
 
     const passwordHash = row.password_hash as string;
@@ -137,10 +141,10 @@ export async function login(email: string, password: string): Promise<{ success:
       permission_code: row.permission_code as PermissionCode,
       permission_name: row.permission_name as string,
       member_id: row.member_id ? Number(row.member_id) : null,
-      first_name: (row.first_name as string) || null,
-      last_name: (row.last_name as string) || null,
-      licence: (row.licence as string) || null,
-      programme: (row.programme as string) || null,
+      first_name: ((row.u_first_name || row.m_first_name) as string) || null,
+      last_name: ((row.u_last_name || row.m_last_name) as string) || null,
+      licence: ((row.u_licence || row.m_licence) as string) || null,
+      programme: ((row.u_programme || row.m_programme) as string) || null,
     };
 
     await createSession(sessionUser);

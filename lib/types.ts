@@ -10,6 +10,14 @@ export interface Permission {
   created_at: string;
 }
 
+export type SectionFormation = "Dev Mobile & Site Web" | "Réseau & Cybersécurité" | "Outil Informatique";
+
+export const SECTIONS_FORMATION: SectionFormation[] = [
+  "Dev Mobile & Site Web",
+  "Réseau & Cybersécurité",
+  "Outil Informatique",
+];
+
 export interface Membre {
   id: number;
   first_name: string;
@@ -22,9 +30,21 @@ export interface Membre {
   role_club: string;             // ex: Membre, Président, Lead Dev
   status: "actif" | "inactif" | "suspendu";
   type_inscription: TypeInscription; // 'inscrit' | 'reinscrit'
+  section?: SectionFormation | string | null; // Domaine de formation souhaité
   added_by?: number | null;      // ID de l'utilisateur (ex: Chef de classe) qui l'a ajouté
   added_by_name?: string | null; // Nom complet du chef/utilisateur qui l'a ajouté
   joined_at: string;
+}
+
+export interface Organisateur {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email?: string | null;
+  phone?: string | null;
+  role: string;
+  photo_url?: string | null;
+  created_at: string;
 }
 
 export interface User {

@@ -1,26 +1,94 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-cjp-orange: #FFA500;
+  --color-cjp-gold: #F5B51B;
+  --color-cjp-orange-light: #FFF4D6;
+  --color-cjp-black: #171717;
+  --color-cjp-white: #FFFFFF;
+  --color-cjp-gray-light: #F7F7F7;
+
+  --color-cjp-success: #16A34A;
+  --color-cjp-error: #DC2626;
+  --color-cjp-warning: #EAB308;
+  --color-cjp-info: #2563EB;
+  --color-cjp-text-muted: #737373;
+  --color-cjp-border: #E5E5E5;
+
+  --font-sans: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-heading: var(--font-poppins), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
 :root {
-  --background: #ffffff;
+  --background: #FFFFFF;
+  --surface: #F7F7F7;
+  --surface-secondary: #FFFFFF;
   --foreground: #171717;
+  --muted: #737373;
+  --border: #E5E5E5;
+  --accent: #FFA500;
+  --accent-hover: #F5B51B;
+  --accent-light: #FFF4D6;
+  --accent-glow: rgba(255, 165, 0, 0.18);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+.dark {
+  --background: #171717;
+  --surface: #222222;
+  --surface-secondary: #292929;
+  --foreground: #FFFFFF;
+  --muted: #A3A3A3;
+  --border: #383838;
+  --accent: #FFA500;
+  --accent-hover: #F5B51B;
+  --accent-light: rgba(255, 165, 0, 0.12);
+  --accent-glow: rgba(255, 165, 0, 0.25);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--border);
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+h1, h2, h3, h4, h5, h6, .font-heading {
+  font-family: var(--font-heading);
+}
+
+code, pre, kbd, samp, .font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Micro-animations douces et respect de prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Désactiver l'œil natif d'Edge/Windows pour éviter les conflits avec le bouton custom */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none !important;
 }

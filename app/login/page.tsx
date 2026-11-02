@@ -2,10 +2,14 @@ import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { checkHasUsers } from "@/actions/auth";
 import LoginForm from "@/components/login-form";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+
+export const instant = false;
 
 export const metadata = {
-  title: "Connexion - CJP (Club des Jeunes Programmeurs)",
-  description: "Portail de connexion pour la gestion des membres et de la structure du CJP.",
+  title: "Connexion",
+  description:
+    "Portail de connexion pour la gestion des membres et de la structure du CJP (Club des Jeunes Programmeurs).",
 };
 
 export default async function LoginPage() {
@@ -22,20 +26,27 @@ export default async function LoginPage() {
   const hasUsers = await checkHasUsers();
 
   return (
-    <main className="relative min-h-screen flex items-center justify-center p-4 bg-[#090d16] text-slate-100 overflow-hidden font-sans">
-      {/* Effets d'éclairage ambient & blobs de fond */}
-      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-indigo-600/15 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-violet-600/15 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute top-[40%] right-[30%] w-[350px] h-[350px] bg-cyan-500/10 rounded-full blur-[130px] pointer-events-none" />
+    <main className="relative min-h-screen flex flex-col items-center justify-center p-4 bg-[#FFFFFF] dark:bg-[#171717] text-[#171717] dark:text-white overflow-hidden transition-colors duration-200">
+      {/* Bouton de bascule thème en haut à droite */}
+      <div className="absolute top-5 right-5 z-20">
+        <ThemeToggle />
+      </div>
+
+      {/* Halo d'ambiance chaleureux aux couleurs officielles CJP (#FFA500) */}
+      <div className="absolute top-[-12%] left-[-10%] w-[520px] h-[520px] bg-[#FFA500]/10 dark:bg-[#FFA500]/12 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute bottom-[-12%] right-[-10%] w-[500px] h-[500px] bg-[#F5B51B]/10 dark:bg-[#F5B51B]/10 rounded-full blur-[140px] pointer-events-none" />
 
       {/* Motif de grille subtile */}
-      <div 
-        className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b12_1px,transparent_1px),linear-gradient(to_bottom,#1e293b12_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none" 
-      />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#FFA50008_1px,transparent_1px),linear-gradient(to_bottom,#FFA50008_1px,transparent_1px)] bg-[size:36px_36px] pointer-events-none" />
 
       {/* Carte centrale du formulaire */}
-      <div className="relative z-10 w-full max-w-md">
+      <div className="relative z-10 w-full max-w-md animate-fadeIn my-8">
         <LoginForm initialHasUsers={hasUsers} />
+
+        {/* Note de bas de page discrète */}
+        <p className="mt-6 text-center text-xs text-[#737373] dark:text-[#A3A3A3]">
+          Club des Jeunes Programmeurs • Portail Officiel
+        </p>
       </div>
     </main>
   );

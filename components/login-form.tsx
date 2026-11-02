@@ -1,19 +1,24 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useRef, useTransition } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
-  CodeIcon,
-  MailIcon,
-  LockIcon,
-  EyeIcon,
-  EyeOffIcon,
-  AlertCircleIcon,
-  ArrowRightIcon,
-  ShieldCheckIcon,
-  SparklesIcon,
-} from "./icons";
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  ArrowRight,
+  ShieldCheck,
+  Sparkles,
+  User,
+} from "lucide-react";
 import { loginAction, seedInitialAdmin } from "@/actions/auth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface LoginFormProps {
   initialHasUsers: boolean;
@@ -26,6 +31,7 @@ export default function LoginForm({ initialHasUsers }: LoginFormProps) {
   // Mode initialisation premier admin si la base est vide
   const [isSetupMode, setIsSetupMode] = useState(!initialHasUsers);
   const [showPassword, setShowPassword] = useState(false);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -41,7 +47,7 @@ export default function LoginForm({ initialHasUsers }: LoginFormProps) {
     setSuccessMessage(null);
 
     if (!email || !password) {
-      setErrorMessage("Veuillez remplir tous les champs obligatoires.");
+      setErrorMessage("Veuillez renseigner tous les champs obligatoires.");
       return;
     }
 
@@ -64,7 +70,9 @@ export default function LoginForm({ initialHasUsers }: LoginFormProps) {
           router.push("/admin");
           router.refresh();
         } else {
-          setSuccessMessage("Compte Administrateur créé ! Vous pouvez maintenant vous connecter.");
+          setSuccessMessage(
+            "Compte Super-Administrateur créé avec succès ! Connectez-vous."
+          );
           setIsSetupMode(false);
         }
       } else {
@@ -90,159 +98,176 @@ export default function LoginForm({ initialHasUsers }: LoginFormProps) {
   };
 
   return (
-    <div className="w-full bg-slate-900/60 backdrop-blur-2xl border border-slate-800/80 rounded-2xl p-7 md:p-8 shadow-[0_0_50px_-12px_rgba(99,102,241,0.2)] transition-all">
-      {/* En-tête avec Logo et Badge */}
-      <div className="flex flex-col items-center text-center mb-7">
-        <div className="relative mb-3 flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 shadow-lg shadow-indigo-500/25 ring-1 ring-white/20">
-          <CodeIcon className="w-7 h-7 text-white stroke-[2.2]" />
-          <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-400 border-2 border-[#090d16] rounded-full animate-pulse" />
-        </div>
-
-        <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-          CJP <span className="text-indigo-400 font-semibold text-lg">PORTAL</span>
-        </h1>
-        <p className="text-xs text-slate-400 mt-1 max-w-xs">
-          {isSetupMode
-            ? "Initialisation du compte Super-Administrateur"
-            : "Club des Jeunes Programmeurs • Espace de Gestion"}
-        </p>
-      </div>
-
-      {/* Bannière de première installation */}
-      {!initialHasUsers && !successMessage && (
-        <div className="mb-6 p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-start gap-3 text-xs text-indigo-300">
-          <SparklesIcon className="w-4 h-4 text-indigo-400 mt-0.5 shrink-0" />
-          <div>
-            <span className="font-semibold text-white">Premier démarrage détecté :</span> Votre base Turso est prête.
-            Créez votre compte Super-Admin pour commencer.
+    <Card className="w-full bg-white/90 dark:bg-[#222222]/90 backdrop-blur-2xl border-[#E5E5E5] dark:border-[#383838] shadow-xl shadow-black/5 dark:shadow-[#FFA500]/5 transition-all">
+      <CardContent className="p-5 sm:p-8">
+        {/* En-tête avec Logo Officiel CJP */}
+        <div className="flex flex-col items-center text-center mb-6">
+          <div className="relative mb-3 flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-2xl p-1 bg-white dark:bg-[#171717] ring-1 ring-[#FFA500]/40 shadow-md shadow-[#FFA500]/15">
+            <Image
+              src="/cjp-logo.png"
+              alt="Logo officiel Club des Jeunes Programmeurs"
+              width={72}
+              height={72}
+              priority
+              className="object-contain w-full h-full"
+            />
           </div>
-        </div>
-      )}
 
-      {/* Messages d'erreur ou de succès */}
-      {errorMessage && (
-        <div className="mb-5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center gap-3 text-xs text-red-300 animate-fadeIn">
-          <AlertCircleIcon className="w-4 h-4 text-red-400 shrink-0" />
-          <span>{errorMessage}</span>
+          <h1 className="font-heading text-xl sm:text-2xl font-bold tracking-tight text-[#171717] dark:text-white flex items-center gap-2">
+            CJP{" "}
+            <span className="text-[#FFA500] font-semibold text-base sm:text-lg px-2 py-0.5 rounded-lg bg-[#FFF4D6] dark:bg-[#FFA500]/15 border border-[#FFA500]/30">
+              PORTAL
+            </span>
+          </h1>
+          <p className="text-xs text-[#737373] dark:text-[#A3A3A3] mt-1.5 max-w-xs">
+            {isSetupMode
+              ? "Initialisation du compte Super-Administrateur"
+              : "Club des Jeunes Programmeurs • Espace de Gestion"}
+          </p>
         </div>
-      )}
 
-      {successMessage && (
-        <div className="mb-5 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-3 text-xs text-emerald-300">
-          <ShieldCheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>{successMessage}</span>
-        </div>
-      )}
-
-      {/* Formulaire */}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Champs supplémentaires pour le mode Setup initial */}
-        {isSetupMode && (
-          <div className="grid grid-cols-2 gap-3">
+        {/* Bannière de première installation (Setup mode) */}
+        {!initialHasUsers && !successMessage && (
+          <div className="mb-6 p-4 rounded-xl bg-[#FFF4D6] dark:bg-[#FFA500]/10 border border-[#FFA500]/30 flex items-start gap-3 text-xs text-[#171717] dark:text-amber-200">
+            <Sparkles className="w-4 h-4 text-[#FFA500] mt-0.5 shrink-0" />
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">Prénom</label>
-              <input
+              <span className="font-semibold text-[#171717] dark:text-[#FFA500]">
+                Premier démarrage détecté :
+              </span>{" "}
+              Votre base Turso est prête. Configurez votre compte Super-Admin en 1 clic.
+            </div>
+          </div>
+        )}
+
+        {/* Messages d'erreur */}
+        {errorMessage && (
+          <div className="mb-5 p-3.5 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 flex items-center gap-3 text-xs text-[#DC2626] dark:text-red-400 animate-fadeIn">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
+        {/* Messages de succès */}
+        {successMessage && (
+          <div className="mb-5 p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 flex items-center gap-3 text-xs text-[#16A34A] dark:text-emerald-400 animate-fadeIn">
+            <ShieldCheck className="w-4 h-4 shrink-0" />
+            <span>{successMessage}</span>
+          </div>
+        )}
+
+        {/* Formulaire de connexion / setup */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Champs Prénom & Nom pour le Setup initial */}
+          {isSetupMode && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input
+                label="Prénom"
                 type="text"
                 required
                 value={prenom}
                 onChange={(e) => setPrenom(e.target.value)}
                 placeholder="Mamadou"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+                leftIcon={<User className="w-4 h-4" />}
               />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">Nom</label>
-              <input
+              <Input
+                label="Nom"
                 type="text"
                 required
                 value={nom}
                 onChange={(e) => setNom(e.target.value)}
                 placeholder="Diallo"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
               />
             </div>
-          </div>
-        )}
-
-        {/* Email */}
-        <div>
-          <label className="block text-xs font-medium text-slate-300 mb-1.5">Adresse email</label>
-          <div className="relative">
-            <MailIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="ex: admin@cjp.org"
-              className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
-            />
-          </div>
-        </div>
-
-        {/* Mot de passe */}
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="block text-xs font-medium text-slate-300">Mot de passe</label>
-          </div>
-          <div className="relative">
-            <LockIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type={showPassword ? "text" : "password"}
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••••••"
-              className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 focus:outline-none"
-              tabIndex={-1}
-            >
-              {showPassword ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
-            </button>
-          </div>
-        </div>
-
-        {/* Bouton de validation */}
-        <button
-          type="submit"
-          disabled={isPending}
-          className="w-full mt-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-medium text-sm shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.01] active:scale-[0.99]"
-        >
-          {isPending ? (
-            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          ) : (
-            <>
-              <span>{isSetupMode ? "Créer et se connecter" : "Se connecter"}</span>
-              <ArrowRightIcon className="w-4 h-4" />
-            </>
           )}
-        </button>
-      </form>
 
-      {/* Rôles supportés */}
-      <div className="mt-7 pt-5 border-t border-slate-800/60">
-        <p className="text-[11px] text-center text-slate-500 mb-2">Accès multi-rôles sécurisé</p>
-        <div className="flex flex-wrap items-center justify-center gap-1.5 text-[10px]">
-          <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 font-medium">
-            Admin
-          </span>
-          <span className="px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 font-medium">
-            Bureau
-          </span>
-          <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-medium">
-            Chef de classe
-          </span>
-          <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700/60 text-slate-300 font-medium">
-            Membre
-          </span>
+          {/* Email */}
+          <Input
+            label="Adresse email"
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="ex: membre@cjp.org"
+            leftIcon={<Mail className="w-4 h-4" />}
+          />
+
+          {/* Mot de passe */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs sm:text-sm font-medium text-[#171717] dark:text-white">
+                Mot de passe
+              </label>
+            </div>
+            <div className="relative flex items-center">
+              <div className="absolute left-3.5 flex items-center pointer-events-none text-[#737373] dark:text-[#A3A3A3] z-10">
+                <Lock className="w-4 h-4" />
+              </div>
+              <input
+                ref={passwordInputRef}
+                type={showPassword ? "text" : "password"}
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Entrez votre mot de passe"
+                className="w-full pl-10 pr-12 py-2.5 rounded-xl bg-white dark:bg-[#1f1f1f] border border-[#E5E5E5] dark:border-[#383838] text-[#171717] dark:text-white placeholder-[#737373]/60 dark:placeholder-[#A3A3A3]/50 text-sm focus:border-[#FFA500] focus:ring-2 focus:ring-[#FFA500]/25 dark:focus:ring-[#FFA500]/30 outline-none transition-all duration-200"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  // Synchroniser la valeur si le navigateur a prérempli le champ via autofill
+                  if (passwordInputRef.current && !password && passwordInputRef.current.value) {
+                    setPassword(passwordInputRef.current.value);
+                  }
+                  setShowPassword((prev) => !prev);
+                }}
+                className="absolute right-0 top-0 bottom-0 w-12 flex items-center justify-center z-20 text-[#737373] hover:text-[#FFA500] dark:text-[#A3A3A3] dark:hover:text-[#FFA500] active:text-[#FFA500] focus:outline-none cursor-pointer transition-colors"
+                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                title={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              >
+                {showPassword ? (
+                  <EyeOff className="w-5 h-5 text-[#FFA500]" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Bouton de validation officiel Orange #FFA500 */}
+          <Button
+            type="submit"
+            variant="primary"
+            isLoading={isPending}
+            className="w-full mt-2"
+            rightIcon={<ArrowRight className="w-4 h-4 text-[#171717]" />}
+          >
+            {isSetupMode ? "Créer et se connecter" : "Se connecter"}
+          </Button>
+        </form>
+
+        {/* Badges des rôles supportés */}
+        <div className="mt-8 pt-6 border-t border-[#E5E5E5] dark:border-[#383838]">
+          <p className="text-[11px] text-center text-[#737373] dark:text-[#A3A3A3] mb-2.5 font-medium">
+            Accès sécurisé CJP par profil
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
+            <Badge variant="cjp" size="sm" dot>
+              Admin
+            </Badge>
+            <Badge variant="warning" size="sm" dot>
+              Bureau
+            </Badge>
+            <Badge variant="success" size="sm" dot>
+              Chef de classe
+            </Badge>
+            <Badge variant="neutral" size="sm">
+              Membre
+            </Badge>
+          </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
