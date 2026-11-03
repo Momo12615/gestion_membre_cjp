@@ -67,8 +67,7 @@ export default function LoginForm({ initialHasUsers }: LoginFormProps) {
         // Connexion automatique après création
         const loginRes = await loginAction(email, password);
         if (loginRes.success) {
-          router.push("/admin");
-          router.refresh();
+          window.location.href = "/admin";
         } else {
           setSuccessMessage(
             "Compte Super-Administrateur créé avec succès ! Connectez-vous."
@@ -83,16 +82,12 @@ export default function LoginForm({ initialHasUsers }: LoginFormProps) {
         }
 
         const role = res.user?.permission_code;
-        if (role === "ADMIN") {
-          router.push("/admin");
-        } else if (role === "BUREAU") {
-          router.push("/bureau");
-        } else if (role === "CHEF_DE_CLASSE") {
-          router.push("/classe");
-        } else {
-          router.push("/profil");
-        }
-        router.refresh();
+        let dest = "/profil";
+        if (role === "ADMIN") dest = "/admin";
+        else if (role === "BUREAU") dest = "/bureau";
+        else if (role === "CHEF_DE_CLASSE") dest = "/classe";
+
+        window.location.href = dest;
       }
     });
   };

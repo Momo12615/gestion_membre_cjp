@@ -19,6 +19,7 @@ import { EditOrganisateurModal } from "@/components/admin/edit-organisateur-moda
 import { CreateMemberModal } from "@/components/admin/create-member-modal";
 import { UserToggleButton } from "@/components/admin/user-toggle-button";
 import { OrganisateurDeleteButton } from "@/components/admin/organisateur-delete-button";
+import { InviteOrganisateurButton } from "@/components/admin/invite-organisateur-button";
 
 interface AdminUserItem {
   id: number;
@@ -282,6 +283,7 @@ export function AdminTabsView({ users, organisateurs, members }: AdminTabsViewPr
                       )}
 
                       <div className="flex items-center gap-1 shrink-0">
+                        <InviteOrganisateurButton organisateur={orga} />
                         <EditOrganisateurModal organisateur={orga} />
                         <OrganisateurDeleteButton
                           id={orga.id}
