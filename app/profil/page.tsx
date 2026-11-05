@@ -5,6 +5,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { Badge } from "@/components/ui/badge";
 import { LogoutButton } from "@/components/logout-button";
+import { EditProfileModal } from "@/components/profile/edit-profile-modal";
 import { Mail, Shield } from "lucide-react";
 
 export const instant = false;
@@ -36,7 +37,10 @@ export default async function ProfilPage() {
             </p>
           </div>
 
-          <LogoutButton />
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <EditProfileModal user={session} />
+            <LogoutButton />
+          </div>
         </div>
 
         {/* CARTE DE MEMBRE VIRTUELLE OFFICIELLE CJP */}

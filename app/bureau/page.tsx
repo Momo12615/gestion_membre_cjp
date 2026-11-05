@@ -6,6 +6,8 @@ import { Footer } from "@/components/layout/footer";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LogoutButton } from "@/components/logout-button";
+import { CreateMemberModal } from "@/components/admin/create-member-modal";
+import { EditProfileModal } from "@/components/profile/edit-profile-modal";
 import { Membre } from "@/lib/types";
 import { Users, UserPlus, UserCheck } from "lucide-react";
 
@@ -49,7 +51,9 @@ export default async function BureauDashboardPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+            <CreateMemberModal />
+            <EditProfileModal user={session} />
             <LogoutButton />
           </div>
         </div>
@@ -107,11 +111,14 @@ export default async function BureauDashboardPage() {
 
         {/* TABLE DES MEMBRES */}
         <Card>
-          <CardHeader className="border-b border-[#E5E5E5] dark:border-[#383838] pb-4">
-            <CardTitle>Supervision des Membres CJP</CardTitle>
-            <CardDescription>
-              Vue d&apos;ensemble de tous les membres enregistrés à l&apos;échelle du club.
-            </CardDescription>
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E5E5E5] dark:border-[#383838] pb-4">
+            <div>
+              <CardTitle>Supervision des Membres CJP</CardTitle>
+              <CardDescription>
+                Vue d&apos;ensemble de tous les membres enregistrés à l&apos;échelle du club.
+              </CardDescription>
+            </div>
+            <CreateMemberModal />
           </CardHeader>
 
           <CardContent className="p-0">

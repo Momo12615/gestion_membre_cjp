@@ -87,3 +87,58 @@ export async function seedInitialAdmin(email: string, password: string, prenom: 
 
   return { success: true };
 }
+
+export async function updateOwnProfile(data: {
+  first_name: string;
+  last_name: string;
+  password?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const session = await getSession();
+  if (!session) {
+    return { success: false, error: "Vous devez être connecté pour modifier votre profil." };
+  }
+
+  const { first_name, last_name, password } = data;
+  if (!first_name.trim() || !last_name.trim()) {
+    return { success: false, error: "Le prénom et le nom sont requis." };
+  }
+
+  try {
+    // 1. Mettre à jour la table user
+    if (password && password.trim()) {
+      const passwordHash = await hashPassword(password.trim());
+      await db.execute({
+        sql: `UPDATE user SET first_name = ?, last_name = ?, password_hash = ? WHERE id = ?;`,
+        args: [first_name.trim(), last_name.trim(), passwordHash, session.id],
+      });
+    } else {
+      await db.execute({
+        sql: `UPDATE user SET first_name = ?, last_name = ? WHERE id = ?;`,
+        args: [first_name.trim(), last_name.trim(), session.id],
+      });
+    }
+
+    // 2. Si le compte est rattaché à un membre
+    if (session.member_id) {
+      await db.execute({
+        sql: `UPDATE membre SET first_name = ?, last_name = ? WHERE id = ?;`,
+        args: [first_name.trim(), last_name.trim(), session.member_id],
+      });
+    }
+
+    // 3. Si l'adresse email correspond à un organisateur
+    await db.execute({
+      sql: `UPDATE organisateur SET first_name = ?, last_name = ? WHERE LOWER(email) = LOWER(?);`,
+      args: [first_name.trim(), last_name.trim(), session.email],
+    });
+
+    revalidatePath("/bureau");
+    revalidatePath("/admin");
+    revalidatePath("/profil");
+    revalidatePath("/classe");
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Erreur lors de la mise à jour du profil." };
+  }
+}
