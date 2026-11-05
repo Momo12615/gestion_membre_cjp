@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
     "172.21.78.134",
     "172.21.78.134:3000",
     "172.21.78.134:3001",
+    "10.22.120.134",
   ],
   experimental: {
     agentFeedback: true,
