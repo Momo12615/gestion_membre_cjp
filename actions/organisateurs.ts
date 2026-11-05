@@ -218,16 +218,36 @@ export async function deleteOrganisateur(id: number): Promise<{ success: boolean
     }
 
     const existing = await db.execute({
-      sql: "SELECT photo_url FROM organisateur WHERE id = ?",
+      sql: "SELECT email, photo_url FROM organisateur WHERE id = ?",
       args: [id],
     });
 
-    if (existing.rows.length > 0 && existing.rows[0].photo_url) {
+    if (existing.rows.length === 0) {
+      return { success: false, error: "Organisateur introuvable." };
+    }
+
+    const orga = existing.rows[0];
+    const orgaEmail = orga.email as string | null;
+
+    if (orga.photo_url) {
       try {
-        const photoUrl = existing.rows[0].photo_url as string;
+        const photoUrl = orga.photo_url as string;
         const localPath = path.join(process.cwd(), "public", photoUrl.replace(/^\//, ""));
         await fs.unlink(localPath);
       } catch {}
+    }
+
+    // Supprimer les clés étrangères / invitations associées à cet organisateur
+    await db.execute({
+      sql: "DELETE FROM invitation WHERE organisateur_id = ?;",
+      args: [id],
+    });
+
+    if (orgaEmail) {
+      await db.execute({
+        sql: "DELETE FROM invitation WHERE LOWER(email) = LOWER(?);",
+        args: [orgaEmail],
+      });
     }
 
     await db.execute({

@@ -5,6 +5,7 @@ import { getCurrentUserOrThrow, canManageUsers } from "@/lib/permissions";
 import { hashPassword } from "@/lib/auth";
 import { PermissionCode, Permission } from "@/lib/types";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 
 export async function getPermissions(): Promise<Permission[]> {
   const res = await db.execute("SELECT id, name, code, description, created_at FROM permission ORDER BY id ASC;");
@@ -242,13 +243,21 @@ export async function updateUser(
         UPDATE user SET 
           email = COALESCE(?, email),
           permission_id = ?,
-          is_active = COALESCE(?, is_active)
+          is_active = COALESCE(?, is_active),
+          first_name = COALESCE(?, first_name),
+          last_name = COALESCE(?, last_name),
+          licence = ?,
+          programme = ?
         WHERE id = ?;
       `,
       args: [
         data.email?.trim().toLowerCase() || null,
         permissionId,
         data.is_active !== undefined ? (data.is_active ? 1 : 0) : null,
+        data.first_name !== undefined ? data.first_name.trim() : null,
+        data.last_name !== undefined ? data.last_name.trim() : null,
+        data.licence !== undefined ? (data.licence?.trim() || null) : null,
+        data.programme !== undefined ? (data.programme?.trim() || null) : null,
         id,
       ],
     });
@@ -278,9 +287,13 @@ export async function updateUser(
       });
     }
 
+    revalidatePath("/admin");
     revalidatePath("/admin/users");
     return { success: true };
   } catch (err: any) {
+    if (err.message && err.message.includes("UNIQUE constraint failed: user.email")) {
+      return { success: false, error: "Un compte avec cette adresse email existe déjà." };
+    }
     return { success: false, error: err.message || "Erreur de mise à jour." };
   }
 }
@@ -301,25 +314,96 @@ export async function toggleUserStatus(id: number) {
     args: [id],
   });
 
+  revalidatePath("/admin");
   revalidatePath("/admin/users");
   return { success: true };
 }
 
-export async function deleteUser(id: number) {
+export async function deleteUser(id: number): Promise<{ success: boolean; isSelfDelete?: boolean; error?: string }> {
   const currentUser = await getCurrentUserOrThrow();
   if (!canManageUsers(currentUser)) {
     return { success: false, error: "Action réservée aux administrateurs." };
   }
 
-  if (currentUser.id === id) {
-    return { success: false, error: "Vous ne pouvez pas supprimer votre propre compte." };
-  }
-
-  await db.execute({
-    sql: "DELETE FROM user WHERE id = ?;",
+  // Vérifier si l'utilisateur existe
+  const targetUserRes = await db.execute({
+    sql: "SELECT id, email, permission_id FROM user WHERE id = ? LIMIT 1;",
     args: [id],
   });
 
-  revalidatePath("/admin/users");
-  return { success: true };
+  if (targetUserRes.rows.length === 0) {
+    return { success: false, error: "Utilisateur introuvable." };
+  }
+
+  const targetUser = targetUserRes.rows[0];
+  const targetEmail = String(targetUser.email || "").trim().toLowerCase();
+
+  // Si c'est un compte administrateur, vérifier qu'il reste au moins un autre administrateur actif
+  const targetPermRes = await db.execute({
+    sql: "SELECT code FROM permission WHERE id = ? LIMIT 1;",
+    args: [targetUser.permission_id],
+  });
+  const isTargetAdmin = targetPermRes.rows[0]?.code === "ADMIN";
+
+  if (isTargetAdmin) {
+    const remainingAdminsRes = await db.execute({
+      sql: `
+        SELECT COUNT(*) as count 
+        FROM user u 
+        JOIN permission p ON u.permission_id = p.id 
+        WHERE p.code = 'ADMIN' AND u.id != ? AND u.is_active = 1;
+      `,
+      args: [id],
+    });
+    const remainingAdmins = Number(remainingAdminsRes.rows[0]?.count || 0);
+
+    if (remainingAdmins === 0) {
+      return {
+        success: false,
+        error: "Impossible de supprimer ce compte : il doit rester au moins un autre administrateur actif dans le système.",
+      };
+    }
+  }
+
+  try {
+    // 1. Nettoyer / supprimer toutes les clés étrangères liées à cet utilisateur :
+    // A) Détacher les membres inscrits par cet utilisateur (clé étrangère membre.added_by)
+    await db.execute({
+      sql: "UPDATE membre SET added_by = NULL WHERE added_by = ?;",
+      args: [id],
+    });
+
+    // B) Détacher le member_id s'il existe sur ce compte
+    await db.execute({
+      sql: "UPDATE user SET member_id = NULL WHERE id = ?;",
+      args: [id],
+    });
+
+    // C) Supprimer les invitations associées à cet email (clé étrangère dans table invitation)
+    if (targetEmail) {
+      await db.execute({
+        sql: "DELETE FROM invitation WHERE LOWER(email) = ?;",
+        args: [targetEmail],
+      });
+    }
+
+    // 2. Supprimer définitivement l'utilisateur
+    await db.execute({
+      sql: "DELETE FROM user WHERE id = ?;",
+      args: [id],
+    });
+
+    // 3. Si l'administrateur a supprimé son propre compte actuellement connecté
+    const isSelfDelete = currentUser.id === id;
+    if (isSelfDelete) {
+      const cookieStore = await cookies();
+      cookieStore.delete("cjp_session");
+    }
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/users");
+    return { success: true, isSelfDelete };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Erreur lors de la suppression." };
+  }
 }

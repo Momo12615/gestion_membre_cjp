@@ -391,6 +391,12 @@ export async function deleteMember(memberId: number): Promise<{ success: boolean
       return { success: false, error: "Vous n'avez pas la permission de supprimer ce membre." };
     }
 
+    // Détacher d'éventuels comptes utilisateurs liés à ce membre (clé étrangère user.member_id)
+    await db.execute({
+      sql: "UPDATE user SET member_id = NULL WHERE member_id = ?;",
+      args: [memberId],
+    });
+
     await db.execute({
       sql: "DELETE FROM membre WHERE id = ?;",
       args: [memberId],

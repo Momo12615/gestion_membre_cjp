@@ -36,6 +36,7 @@ function isRetryableError(error: any): boolean {
 
   const code = String(error.code || error.cause?.code || "").toUpperCase();
   const causeMsg = String(error.cause?.message || "").toLowerCase();
+  const status = error.status || error.cause?.status || 0;
 
   return (
     code.includes("TIMEOUT") ||
@@ -44,8 +45,15 @@ function isRetryableError(error: any): boolean {
     code.includes("UND_ERR") ||
     code.includes("ENOTFOUND") ||
     code.includes("EAI_AGAIN") ||
+    code.includes("SERVER_ERROR") ||
+    status === 502 ||
+    status === 503 ||
+    status === 504 ||
     msg.includes("fetch failed") ||
     msg.includes("timeout") ||
+    msg.includes("status 502") ||
+    msg.includes("status 503") ||
+    msg.includes("status 504") ||
     msg.includes("connecttimeouterror") ||
     msg.includes("network") ||
     msg.includes("socket") ||

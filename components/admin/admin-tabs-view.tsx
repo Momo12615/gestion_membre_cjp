@@ -18,6 +18,8 @@ import { CreateOrganisateurModal } from "@/components/admin/create-organisateur-
 import { EditOrganisateurModal } from "@/components/admin/edit-organisateur-modal";
 import { CreateMemberModal } from "@/components/admin/create-member-modal";
 import { UserToggleButton } from "@/components/admin/user-toggle-button";
+import { EditUserModal } from "@/components/admin/edit-user-modal";
+import { UserDeleteButton } from "@/components/admin/user-delete-button";
 import { OrganisateurDeleteButton } from "@/components/admin/organisateur-delete-button";
 import { InviteOrganisateurButton } from "@/components/admin/invite-organisateur-button";
 
@@ -412,11 +414,21 @@ export function AdminTabsView({ users, organisateurs, members }: AdminTabsViewPr
                         </div>
                       )}
 
-                      <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#333333] flex justify-end">
+                      <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#333333] flex items-center justify-end gap-1.5">
+                        <EditUserModal user={u} />
                         <UserToggleButton
                           userId={u.id}
                           isActive={u.is_active}
                           userEmail={u.email}
+                        />
+                        <UserDeleteButton
+                          id={u.id}
+                          name={
+                            u.first_name || u.last_name
+                              ? `${u.first_name || ""} ${u.last_name || ""}`.trim()
+                              : u.email
+                          }
+                          email={u.email}
                         />
                       </div>
                     </div>
@@ -486,11 +498,23 @@ export function AdminTabsView({ users, organisateurs, members }: AdminTabsViewPr
                             </Badge>
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <UserToggleButton
-                              userId={u.id}
-                              isActive={u.is_active}
-                              userEmail={u.email}
-                            />
+                            <div className="flex items-center justify-end gap-1.5 shrink-0">
+                              <EditUserModal user={u} />
+                              <UserToggleButton
+                                userId={u.id}
+                                isActive={u.is_active}
+                                userEmail={u.email}
+                              />
+                              <UserDeleteButton
+                                id={u.id}
+                                name={
+                                  u.first_name || u.last_name
+                                    ? `${u.first_name || ""} ${u.last_name || ""}`.trim()
+                                    : u.email
+                                }
+                                email={u.email}
+                              />
+                            </div>
                           </td>
                         </tr>
                       ))}
