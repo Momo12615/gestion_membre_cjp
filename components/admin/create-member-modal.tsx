@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useEffect, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   UserPlus,
@@ -20,12 +21,24 @@ import { SECTIONS_FORMATION, SectionFormation } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 const LICENCES = ["L1", "L2", "L3", "L4", "Master 1", "Master 2"];
 
-export function CreateMemberModal() {
+interface CreateMemberModalProps {
+  trigger?: React.ReactNode;
+  className?: string;
+  size?: "sm" | "md" | "lg";
+}
+
+export function CreateMemberModal({
+  trigger,
+  className,
+  size = "md",
+}: CreateMemberModalProps = {}) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const [firstName, setFirstName] = useState("");
@@ -41,6 +54,31 @@ export function CreateMemberModal() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const isL1 = licence.toUpperCase().includes("L1") || licence.toUpperCase().includes("LICENCE 1");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen && !isPending) {
+        handleClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, isPending]);
 
   const resetForm = () => {
     setFirstName("");
@@ -117,30 +155,48 @@ export function CreateMemberModal() {
 
   return (
     <>
-      <Button
-        onClick={handleOpen}
-        variant="primary"
-        size="md"
-        className="w-full sm:w-auto shadow-sm gap-2"
-      >
-        <UserPlus className="w-4 h-4" />
-        <span>Inscrire un Membre</span>
-      </Button>
+      {trigger ? (
+        <div onClick={handleOpen} className="inline-block cursor-pointer">
+          {trigger}
+        </div>
+      ) : (
+        <Button
+          onClick={handleOpen}
+          variant="primary"
+          size={size}
+          className={cn("w-full sm:w-auto shadow-sm gap-2", className)}
+          leftIcon={<UserPlus className="w-4 h-4 text-[#171717]" />}
+        >
+          <span>Inscrire un Membre</span>
+        </Button>
+      )}
 
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 overflow-y-auto">
-          <div className="relative w-full max-w-lg my-6 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-[#E5E5E5] dark:border-[#383838] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            {/* EN-TÊTE MODALE */}
-            <div className="p-4 sm:p-5 border-b border-[#E5E5E5] dark:border-[#333333] flex items-center justify-between bg-radial from-[#FFA500]/10 via-transparent to-transparent">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#FFF4D6] dark:bg-[#FFA500]/20 flex items-center justify-center text-[#FFA500]">
+      {isOpen && mounted && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isPending) {
+              handleClose();
+            }
+          }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-lg max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-white dark:bg-[#1a1a1a] rounded-2xl sm:rounded-3xl border border-[#E5E5E5] dark:border-[#383838] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 text-[#171717] dark:text-white"
+          >
+            {/* 1. EN-TÊTE FIXE (TOUJOURS VISIBLE AU SOMMET) */}
+            <div className="p-4 sm:p-5 border-b border-[#E5E5E5] dark:border-[#333333] flex items-center justify-between shrink-0 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-md">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-[#FFF4D6] dark:bg-[#FFA500]/20 flex items-center justify-center text-[#FFA500] shrink-0 shadow-xs">
                   <UserPlus className="w-5 h-5" />
                 </div>
-                <div>
-                  <h3 className="font-heading font-bold text-lg text-[#171717] dark:text-white">
+                <div className="min-w-0">
+                  <h3 className="font-heading font-bold text-base sm:text-lg text-[#171717] dark:text-white truncate">
                     Inscrire un Nouveau Membre
                   </h3>
-                  <p className="text-xs text-[#737373] dark:text-[#A3A3A3]">
+                  <p className="text-xs text-[#737373] dark:text-[#A3A3A3] truncate">
                     Enregistrement direct dans le registre CJP
                   </p>
                 </div>
@@ -149,24 +205,28 @@ export function CreateMemberModal() {
                 type="button"
                 onClick={handleClose}
                 disabled={isPending}
-                className="p-1.5 rounded-lg text-[#737373] hover:text-[#171717] dark:hover:text-white hover:bg-[#F7F7F7] dark:hover:bg-[#262626] transition-colors"
+                className="p-2 rounded-xl text-[#737373] hover:text-[#171717] dark:hover:text-white hover:bg-[#F7F7F7] dark:hover:bg-[#262626] transition-colors cursor-pointer shrink-0 ml-2"
                 aria-label="Fermer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* FORMULAIRE */}
-            <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 max-h-[82vh] overflow-y-auto">
+            {/* 2. CORPS DU FORMULAIRE SCROLLABLE SANS AUCUNE COUPURE */}
+            <form
+              id="create-member-form"
+              onSubmit={handleSubmit}
+              className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 overscroll-contain"
+            >
               {errorMessage && (
-                <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-300 text-xs flex items-center gap-2">
+                <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-300 text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{errorMessage}</span>
                 </div>
               )}
 
               {successMessage && (
-                <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2">
+                <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 shrink-0" />
                   <span>{successMessage}</span>
                 </div>
@@ -234,7 +294,7 @@ export function CreateMemberModal() {
               </div>
 
               {/* CLASSE & PROMOTION */}
-              <div className="p-3 rounded-xl bg-[#F7F7F7] dark:bg-[#222222] border border-[#E5E5E5] dark:border-[#383838] space-y-3">
+              <div className="p-3.5 rounded-xl bg-[#F7F7F7] dark:bg-[#222222] border border-[#E5E5E5] dark:border-[#383838] space-y-3">
                 <div className="flex items-center gap-2 text-xs font-semibold text-[#171717] dark:text-white">
                   <GraduationCap className="w-4 h-4 text-[#FFA500]" />
                   <span>Classe & Niveau de l&apos;étudiant</span>
@@ -294,7 +354,7 @@ export function CreateMemberModal() {
                         key={sec}
                         onClick={() => setSection(sec)}
                         disabled={isPending}
-                        className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                        className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
                           isSelected
                             ? "border-[#FFA500] bg-[#FFF4D6] dark:bg-[#FFA500]/15 text-[#FFA500] ring-1 ring-[#FFA500]"
                             : "border-[#E5E5E5] dark:border-[#383838] bg-white dark:bg-[#222222] text-[#737373] dark:text-[#A3A3A3] hover:border-[#FFA500]/50"
@@ -347,7 +407,7 @@ export function CreateMemberModal() {
                       type="button"
                       onClick={() => setTypeInscription("inscrit")}
                       disabled={isPending}
-                      className={`p-3 rounded-xl border text-left transition-all ${
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                         typeInscription === "inscrit"
                           ? "border-[#16A34A] bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500"
                           : "border-[#E5E5E5] dark:border-[#383838] bg-white dark:bg-[#222222] text-[#737373] dark:text-[#A3A3A3]"
@@ -365,7 +425,7 @@ export function CreateMemberModal() {
                       type="button"
                       onClick={() => setTypeInscription("reinscrit")}
                       disabled={isPending}
-                      className={`p-3 rounded-xl border text-left transition-all ${
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                         typeInscription === "reinscrit"
                           ? "border-[#EAB308] bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500"
                           : "border-[#E5E5E5] dark:border-[#383838] bg-white dark:bg-[#222222] text-[#737373] dark:text-[#A3A3A3]"
@@ -391,38 +451,41 @@ export function CreateMemberModal() {
                   {montantActuel.toLocaleString("fr-FR")} GNF
                 </span>
               </div>
-
-              {/* BOUTONS ACTIONS */}
-              <div className="pt-2 flex items-center justify-end gap-3 border-t border-[#E5E5E5] dark:border-[#333333]">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={handleClose}
-                  disabled={isPending}
-                >
-                  Annuler
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="md"
-                  disabled={isPending}
-                  className="gap-2"
-                >
-                  {isPending ? (
-                    <span>Enregistrement en cours...</span>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      <span>Valider l&apos;Inscription</span>
-                    </>
-                  )}
-                </Button>
-              </div>
             </form>
+
+            {/* 3. PIED DE PAGE FIXE (BOUTONS D'ACTION ANCRÉS EN BAS) */}
+            <div className="p-3.5 sm:p-4 border-t border-[#E5E5E5] dark:border-[#333333] shrink-0 bg-[#F7F7F7]/95 dark:bg-[#171717]/95 backdrop-blur-md flex items-center justify-end gap-2.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={handleClose}
+                disabled={isPending}
+                className="h-10 text-xs sm:text-sm font-semibold cursor-pointer"
+              >
+                Annuler
+              </Button>
+              <Button
+                type="submit"
+                form="create-member-form"
+                variant="primary"
+                size="md"
+                disabled={isPending}
+                className="h-10 text-xs sm:text-sm font-bold gap-2 bg-gradient-to-r from-[#FFA500] to-[#FF8C00] text-[#171717] shadow-sm cursor-pointer"
+              >
+                {isPending ? (
+                  <span>Enregistrement en cours...</span>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-[#171717]" />
+                    <span>Valider l&apos;Inscription</span>
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

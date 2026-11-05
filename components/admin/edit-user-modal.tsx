@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useEffect, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Pencil,
@@ -12,7 +13,6 @@ import {
   User,
   Shield,
   GraduationCap,
-  BookOpen,
 } from "lucide-react";
 import { updateUser } from "@/actions/users";
 import { PermissionCode } from "@/lib/types";
@@ -41,6 +41,7 @@ interface EditUserModalProps {
 export function EditUserModal({ user }: EditUserModalProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const [firstName, setFirstName] = useState(user.first_name || "");
@@ -54,6 +55,31 @@ export function EditUserModal({ user }: EditUserModalProps) {
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen && !isPending) {
+        handleClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, isPending]);
 
   const handleOpen = () => {
     setFirstName(user.first_name || "");
@@ -114,62 +140,74 @@ export function EditUserModal({ user }: EditUserModalProps) {
         variant="outline"
         size="sm"
         onClick={handleOpen}
-        className="text-[#737373] dark:text-[#A3A3A3] hover:text-[#FFA500] hover:border-[#FFA500]/50"
+        className="text-[#737373] dark:text-[#A3A3A3] hover:text-[#FFA500] hover:border-[#FFA500]/50 cursor-pointer"
         title="Modifier ce compte utilisateur"
       >
         <Pencil className="w-3.5 h-3.5" />
       </Button>
 
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+      {isOpen && mounted && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isPending) {
+              handleClose();
+            }
+          }}
+          role="dialog"
+          aria-modal="true"
+        >
           <div
-            className="w-full max-w-lg max-h-[92vh] overflow-y-auto bg-white dark:bg-[#222222] border border-[#E5E5E5] dark:border-[#383838] rounded-2xl sm:rounded-3xl p-5 sm:p-7 shadow-2xl shadow-black/20 text-[#171717] dark:text-white"
-            role="dialog"
-            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-lg max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-white dark:bg-[#1a1a1a] rounded-2xl sm:rounded-3xl border border-[#E5E5E5] dark:border-[#383838] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 text-[#171717] dark:text-white"
           >
-            {/* Entête */}
-            <div className="flex items-start justify-between pb-4 mb-4 border-b border-[#E5E5E5] dark:border-[#333333]">
-              <div>
+            {/* 1. EN-TÊTE FIXE */}
+            <div className="p-4 sm:p-5 border-b border-[#E5E5E5] dark:border-[#333333] flex items-center justify-between shrink-0 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-md">
+              <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base sm:text-lg font-heading font-bold text-[#171717] dark:text-white">
+                  <h2 className="text-base sm:text-lg font-heading font-bold text-[#171717] dark:text-white truncate">
                     Modifier l&apos;utilisateur
                   </h2>
-                  <Badge variant="cjp" size="sm">
+                  <Badge variant="cjp" size="sm" className="shrink-0">
                     ID #{user.id}
                   </Badge>
                 </div>
-                <p className="text-xs text-[#737373] dark:text-[#A3A3A3] mt-0.5">
-                  Mettez à jour les identifiants, le rôle ou les accès de cet utilisateur.
+                <p className="text-xs text-[#737373] dark:text-[#A3A3A3] mt-0.5 truncate">
+                  Mettez à jour les identifiants, le rôle ou les accès.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={handleClose}
                 disabled={isPending}
-                className="p-1 rounded-lg text-[#737373] hover:text-[#171717] dark:hover:text-white hover:bg-[#F2F2F2] dark:hover:bg-[#2B2B2B] transition-colors"
+                className="p-2 rounded-xl text-[#737373] hover:text-[#171717] dark:hover:text-white hover:bg-[#F7F7F7] dark:hover:bg-[#262626] transition-colors cursor-pointer shrink-0 ml-2"
                 aria-label="Fermer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Alertes */}
-            {errorMessage && (
-              <div className="mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400 text-xs flex items-center gap-2 animate-shake">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{errorMessage}</span>
-              </div>
-            )}
+            {/* 2. CORPS DU FORMULAIRE SCROLLABLE */}
+            <form
+              id="edit-user-form"
+              onSubmit={handleSubmit}
+              className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 overscroll-contain"
+            >
+              {/* Alertes */}
+              {errorMessage && (
+                <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400 text-xs flex items-center gap-2 animate-shake">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
 
-            {successMessage && (
-              <div className="mb-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>{successMessage}</span>
-              </div>
-            )}
+              {successMessage && (
+                <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>{successMessage}</span>
+                </div>
+              )}
 
-            {/* Formulaire */}
-            <form onSubmit={handleSubmit} className="space-y-4">
               {/* Prénom & Nom */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Input
@@ -247,7 +285,7 @@ export function EditUserModal({ user }: EditUserModalProps) {
                       <select
                         value={licence}
                         onChange={(e) => setLicence(e.target.value)}
-                        className="w-full h-9 px-2.5 rounded-lg bg-white dark:bg-[#1C1C1C] border border-[#E5E5E5] dark:border-[#383838] text-xs text-[#171717] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FFA500]/50"
+                        className="w-full h-9 px-2.5 rounded-lg bg-white dark:bg-[#1C1C1C] border border-[#E5E5E5] dark:border-[#383838] text-xs text-[#171717] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FFA500]/50 cursor-pointer"
                       >
                         <option value="L1">Licence 1 (L1)</option>
                         <option value="L2">Licence 2 (L2)</option>
@@ -265,7 +303,7 @@ export function EditUserModal({ user }: EditUserModalProps) {
                       <select
                         value={programme}
                         onChange={(e) => setProgramme(e.target.value)}
-                        className="w-full h-9 px-2.5 rounded-lg bg-white dark:bg-[#1C1C1C] border border-[#E5E5E5] dark:border-[#383838] text-xs text-[#171717] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FFA500]/50"
+                        className="w-full h-9 px-2.5 rounded-lg bg-white dark:bg-[#1C1C1C] border border-[#E5E5E5] dark:border-[#383838] text-xs text-[#171717] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FFA500]/50 cursor-pointer"
                       >
                         {PROGRAMMES.map((p) => (
                           <option key={p} value={p}>
@@ -304,32 +342,35 @@ export function EditUserModal({ user }: EditUserModalProps) {
                   />
                 </button>
               </div>
-
-              {/* Boutons d'action */}
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-[#E5E5E5] dark:border-[#333333]">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleClose}
-                  disabled={isPending}
-                >
-                  Annuler
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="sm"
-                  isLoading={isPending}
-                >
-                  Enregistrer les modifications
-                </Button>
-              </div>
             </form>
+
+            {/* 3. PIED DE PAGE FIXE */}
+            <div className="p-3.5 sm:p-4 border-t border-[#E5E5E5] dark:border-[#333333] shrink-0 bg-[#F7F7F7]/95 dark:bg-[#171717]/95 backdrop-blur-md flex items-center justify-end gap-2.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleClose}
+                disabled={isPending}
+                className="cursor-pointer"
+              >
+                Annuler
+              </Button>
+              <Button
+                type="submit"
+                form="edit-user-form"
+                variant="primary"
+                size="sm"
+                isLoading={isPending}
+                className="cursor-pointer"
+              >
+                Enregistrer les modifications
+              </Button>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
 }
-
