@@ -2,7 +2,9 @@
 
 import { db } from "@/lib/db";
 import { hashPassword, createSession } from "@/lib/auth";
+import { getCurrentUserOrThrow, canManageUsers } from "@/lib/permissions";
 import { SessionUser } from "@/lib/types";
+import { sendNimbaSms, formatGuineanPhoneNumber } from "@/lib/sms";
 import { headers } from "next/headers";
 import crypto from "crypto";
 
@@ -16,6 +18,9 @@ export interface InvitationData {
   permission_code: string;
   expires_at: string;
   used_at: string | null;
+  phone?: string | null;
+  licence?: string | null;
+  programme?: string | null;
 }
 
 /**
@@ -38,7 +43,8 @@ export async function getInvitationByToken(token: string): Promise<{
       sql: `
         SELECT 
           id, token, email, first_name, last_name, role, 
-          organisateur_id, permission_code, expires_at, used_at, created_at
+          organisateur_id, permission_code, expires_at, used_at, created_at,
+          phone, licence, programme
         FROM invitation
         WHERE token = ?
         LIMIT 1;
@@ -84,6 +90,9 @@ export async function getInvitationByToken(token: string): Promise<{
         permission_code: (row.permission_code as string) || "BUREAU",
         expires_at: row.expires_at as string,
         used_at: (row.used_at as string) || null,
+        phone: (row.phone as string) || null,
+        licence: (row.licence as string) || null,
+        programme: (row.programme as string) || null,
       },
     };
   } catch (err: any) {
@@ -143,13 +152,13 @@ export async function acceptInvitationAction(input: {
     // 2. Hashage sécurisé du mot de passe (bcrypt)
     const passwordHash = await hashPassword(password);
 
-    // 3. Récupération de la permission correspondante (ex: BUREAU ou ADMIN)
+    // 3. Récupération de la permission correspondante
     const permRes = await db.execute({
       sql: "SELECT id, code, name FROM permission WHERE code = ? LIMIT 1;",
       args: [invitation.permission_code],
     });
 
-    const permissionId = permRes.rows.length > 0 ? Number(permRes.rows[0].id) : 2; // Défaut: BUREAU (2)
+    const permissionId = permRes.rows.length > 0 ? Number(permRes.rows[0].id) : 2;
     const permissionCode = permRes.rows.length > 0 ? (permRes.rows[0].code as any) : "BUREAU";
     const permissionName = permRes.rows.length > 0 ? (permRes.rows[0].name as string) : "Membre du Bureau";
 
@@ -167,7 +176,8 @@ export async function acceptInvitationAction(input: {
       await db.execute({
         sql: `
           UPDATE user 
-          SET password_hash = ?, is_active = 1, first_name = ?, last_name = ?, permission_id = ?
+          SET password_hash = ?, is_active = 1, first_name = ?, last_name = ?, permission_id = ?,
+              licence = COALESCE(?, licence), programme = COALESCE(?, programme)
           WHERE id = ?;
         `,
         args: [
@@ -175,6 +185,8 @@ export async function acceptInvitationAction(input: {
           invitation.first_name,
           invitation.last_name,
           permissionId,
+          invitation.licence || null,
+          invitation.programme || null,
           userId,
         ],
       });
@@ -184,8 +196,8 @@ export async function acceptInvitationAction(input: {
         sql: `
           INSERT INTO user (
             email, password_hash, permission_id, is_active, 
-            first_name, last_name, created_at
-          ) VALUES (?, ?, ?, 1, ?, ?, CURRENT_TIMESTAMP);
+            first_name, last_name, licence, programme, created_at
+          ) VALUES (?, ?, ?, 1, ?, ?, ?, ?, CURRENT_TIMESTAMP);
         `,
         args: [
           normalizedEmail,
@@ -193,6 +205,8 @@ export async function acceptInvitationAction(input: {
           permissionId,
           invitation.first_name,
           invitation.last_name,
+          invitation.licence || null,
+          invitation.programme || null,
         ],
       });
       userId = Number(insertUserRes.lastInsertRowid);
@@ -217,7 +231,12 @@ export async function acceptInvitationAction(input: {
     await createSession(sessionUser);
 
     // Redirection selon le rôle officiel
-    const redirectUrl = permissionCode === "ADMIN" ? "/admin" : "/bureau";
+    const redirectUrl =
+      permissionCode === "ADMIN"
+        ? "/admin"
+        : permissionCode === "CHEF_DE_CLASSE"
+        ? "/classe"
+        : "/bureau";
 
     return {
       success: true,
@@ -234,7 +253,6 @@ export async function acceptInvitationAction(input: {
 
 /**
  * Crée un jeton d'invitation pour un organisateur du comité
- * et construit l'URL basée dynamiquement sur l'origine du navigateur (window.location.origin)
  */
 export async function createCommitteeInvitation(
   organisateurId: number,
@@ -264,14 +282,12 @@ export async function createCommitteeInvitation(
     }
 
     const token = crypto.randomBytes(32).toString("hex");
-    // Expiration à 48 heures
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000)
       .toISOString()
       .replace("T", " ")
       .substring(0, 19);
 
     const roleStr = (orga.role as string) || "Membre du Comité";
-    // Si c'est le Président ou Administrateur -> permission ADMIN, sinon BUREAU
     const isAdmin =
       roleStr.toLowerCase().includes("président") ||
       roleStr.toLowerCase().includes("president") ||
@@ -297,10 +313,6 @@ export async function createCommitteeInvitation(
       ],
     });
 
-    // Détection dynamique de l'origine :
-    // 1. Priorité au window.location.origin transmis depuis le navigateur du client
-    // 2. Sinon, détection via les en-têtes HTTP de la requête (Host / x-forwarded-host)
-    // 3. Sinon, variable d'environnement ou fallback local
     let baseUrl = clientOrigin?.trim();
 
     if (!baseUrl) {
@@ -315,16 +327,13 @@ export async function createCommitteeInvitation(
         if (host) {
           baseUrl = `${proto}://${host}`;
         }
-      } catch (_) {
-        // En cas d'appel hors contexte de requête HTTP
-      }
+      } catch (_) {}
     }
 
     if (!baseUrl) {
       baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
     }
 
-    // Supprime un slash final éventuel
     baseUrl = baseUrl.replace(/\/$/, "");
     const invitationUrl = `${baseUrl}/invitation?token=${token}`;
 
@@ -338,6 +347,148 @@ export async function createCommitteeInvitation(
     return {
       success: false,
       error: err.message || "Erreur lors de la génération de l'invitation.",
+    };
+  }
+}
+
+/**
+ * Invite un Chef de classe et lui envoie un SMS automatique via Nimba SMS
+ */
+export async function inviteChefDeClasseAction(input: {
+  fullName: string;
+  phone: string;
+  licence: string;
+  programme: string;
+  email?: string;
+  clientOrigin?: string;
+}): Promise<{
+  success: boolean;
+  token?: string;
+  invitationUrl?: string;
+  smsSent?: boolean;
+  smsError?: string;
+  phone?: string;
+  error?: string;
+}> {
+  try {
+    const currentUser = await getCurrentUserOrThrow();
+    if (!canManageUsers(currentUser)) {
+      return { success: false, error: "Action réservée aux administrateurs." };
+    }
+
+    const { fullName, phone, licence, programme } = input;
+
+    if (!fullName || !fullName.trim()) {
+      return { success: false, error: "Veuillez renseigner le nom complet du chef de classe." };
+    }
+
+    if (!phone || !phone.trim()) {
+      return { success: false, error: "Le numéro de téléphone est obligatoire pour l'envoi du SMS." };
+    }
+
+    if (!licence || !programme) {
+      return { success: false, error: "Veuillez sélectionner la classe (Licence et Programme)." };
+    }
+
+    // Découpage Nom complet
+    const nameParts = fullName.trim().split(/\s+/);
+    const firstName = nameParts[0] || "Chef";
+    const lastName = nameParts.slice(1).join(" ") || "de Classe";
+
+    const formattedPhone = formatGuineanPhoneNumber(phone);
+
+    // Détermination de l'email
+    let email = input.email?.trim().toLowerCase();
+    if (!email) {
+      // Génération automatique d'un email officiel CJP si non fourni
+      const digits = formattedPhone.replace(/[^0-9]/g, "").slice(-9);
+      email = `chef.${digits}@cjp.edu`;
+    }
+
+    // Vérifier si un compte existe déjà
+    const existingUserRes = await db.execute({
+      sql: "SELECT id FROM user WHERE LOWER(email) = ? LIMIT 1;",
+      args: [email],
+    });
+
+    if (existingUserRes.rows.length > 0) {
+      return {
+        success: false,
+        error: `Un compte utilisateur avec l'adresse email ${email} existe déjà.`,
+      };
+    }
+
+    // Création du token d'invitation (48h)
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000)
+      .toISOString()
+      .replace("T", " ")
+      .substring(0, 19);
+
+    const roleName = `Chef de classe (${licence} - ${programme})`;
+
+    // Enregistrement de l'invitation
+    await db.execute({
+      sql: `
+        INSERT INTO invitation (
+          token, email, first_name, last_name, role, 
+          permission_code, expires_at, phone, licence, programme
+        ) VALUES (?, ?, ?, ?, ?, 'CHEF_DE_CLASSE', ?, ?, ?, ?);
+      `,
+      args: [
+        token,
+        email,
+        firstName,
+        lastName,
+        roleName,
+        expiresAt,
+        formattedPhone,
+        licence,
+        programme,
+      ],
+    });
+
+    // Construction de l'URL d'invitation
+    let baseUrl = input.clientOrigin?.trim();
+    if (!baseUrl) {
+      try {
+        const reqHeaders = await headers();
+        const host = reqHeaders.get("x-forwarded-host") || reqHeaders.get("host");
+        const proto =
+          reqHeaders.get("x-forwarded-proto") ||
+          (host?.includes("localhost") || host?.startsWith("127.") || host?.startsWith("192.168.")
+            ? "http"
+            : "https");
+        if (host) baseUrl = `${proto}://${host}`;
+      } catch (_) {}
+    }
+
+    if (!baseUrl) {
+      baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
+    }
+
+    baseUrl = baseUrl.replace(/\/$/, "");
+    const invitationUrl = `${baseUrl}/invitation?token=${token}`;
+
+    // Message SMS officiel
+    const smsMessage = `CJP: Bonjour ${firstName} ${lastName}, vous etes designe(e) Chef de classe (${licence} - ${programme}). Activez votre acces ici : ${invitationUrl}`;
+
+    // Envoi via Nimba SMS
+    const smsRes = await sendNimbaSms(formattedPhone, smsMessage);
+
+    return {
+      success: true,
+      token,
+      invitationUrl,
+      smsSent: smsRes.success,
+      smsError: smsRes.error,
+      phone: formattedPhone,
+    };
+  } catch (err: any) {
+    console.error("Erreur inviteChefDeClasseAction:", err);
+    return {
+      success: false,
+      error: err.message || "Erreur lors de la création de l'invitation.",
     };
   }
 }

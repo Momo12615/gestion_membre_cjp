@@ -14,6 +14,7 @@ import {
   Award,
   ArrowRight,
   ShieldAlert,
+  GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -230,6 +231,30 @@ export default function InvitationForm({ invitation }: InvitationFormProps) {
                 </div>
               </div>
             </div>
+
+            {/* Classe & Promotion (si Chef de classe) */}
+            {invitation.licence && invitation.programme && (
+              <div>
+                <label className="block text-[11px] font-medium text-[#737373] dark:text-[#A3A3A3] mb-1">
+                  Classe & Promotion sous votre responsabilité
+                </label>
+                <div className="relative flex items-center">
+                  <div className="absolute left-3 flex items-center pointer-events-none text-[#FFA500]">
+                    <GraduationCap className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    value={`${invitation.licence} • ${invitation.programme}`}
+                    readOnly
+                    tabIndex={-1}
+                    className="w-full font-semibold rounded-lg bg-[#FFF4D6]/60 dark:bg-[#FFA500]/10 border border-[#FFA500]/30 text-[#171717] dark:text-[#FFA500] text-xs sm:text-sm py-2 pl-9 pr-8 cursor-not-allowed select-none focus:outline-none"
+                  />
+                  <div className="absolute right-2.5 text-[#FFA500]">
+                    <Lock className="w-3 h-3" />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Définition du mot de passe */}

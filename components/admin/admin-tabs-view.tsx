@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { CreateUserModal } from "@/components/admin/create-user-modal";
+import { InviteChefModal } from "@/components/admin/invite-chef-modal";
 import { CreateOrganisateurModal } from "@/components/admin/create-organisateur-modal";
 import { EditOrganisateurModal } from "@/components/admin/edit-organisateur-modal";
 import { CreateMemberModal } from "@/components/admin/create-member-modal";
@@ -320,7 +321,8 @@ export function AdminTabsView({ users, organisateurs, members }: AdminTabsViewPr
                 Comptes administrateurs, bureau et chefs de classe.
               </CardDescription>
             </div>
-            <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <InviteChefModal />
               <CreateUserModal />
             </div>
           </CardHeader>
