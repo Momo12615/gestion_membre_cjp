@@ -15,21 +15,13 @@ import {
   BookOpen,
 } from "lucide-react";
 import { createMember } from "@/actions/members";
-import { TARIF_INSCRIPTION, TARIF_REINSCRIPTION } from "@/lib/constants";
+import { TARIF_INSCRIPTION, TARIF_REINSCRIPTION, PROGRAMMES } from "@/lib/constants";
 import { SECTIONS_FORMATION, SectionFormation } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
 const LICENCES = ["L1", "L2", "L3", "L4", "Master 1", "Master 2"];
-const PROGRAMMES = [
-  "Génie Logiciel",
-  "Systèmes d'Information (MSI)",
-  "Réseaux & Télécommunications",
-  "MIAGE",
-  "Sécurité & Cyberdéfense",
-  "Autre",
-];
 
 export function CreateMemberModal() {
   const router = useRouter();
@@ -41,7 +33,7 @@ export function CreateMemberModal() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [licence, setLicence] = useState("L1");
-  const [programme, setProgramme] = useState("Génie Logiciel");
+  const [programme, setProgramme] = useState<string>(PROGRAMMES[0]);
   const [typeInscription, setTypeInscription] = useState<"inscrit" | "reinscrit">("inscrit");
   const [section, setSection] = useState<SectionFormation>("Dev Mobile & Site Web");
 
@@ -56,7 +48,7 @@ export function CreateMemberModal() {
     setEmail("");
     setPhone("");
     setLicence("L1");
-    setProgramme("Génie Logiciel");
+    setProgramme(PROGRAMMES[0]);
     setTypeInscription("inscrit");
     setSection("Dev Mobile & Site Web");
     setErrorMessage(null);

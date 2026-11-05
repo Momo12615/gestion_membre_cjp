@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { UserPlus, X, AlertCircle, CheckCircle2, Shield, Lock, Mail, User } from "lucide-react";
 import { createUser } from "@/actions/users";
 import { PermissionCode } from "@/lib/types";
+import { PROGRAMMES } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +21,7 @@ export function CreateUserModal() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<PermissionCode>("CHEF_DE_CLASSE");
   const [licence, setLicence] = useState("L2");
-  const [programme, setProgramme] = useState("Génie Logiciel");
+  const [programme, setProgramme] = useState<string>(PROGRAMMES[0]);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -32,7 +33,7 @@ export function CreateUserModal() {
     setPassword("");
     setRole("CHEF_DE_CLASSE");
     setLicence("L2");
-    setProgramme("Génie Logiciel");
+    setProgramme(PROGRAMMES[0]);
     setErrorMessage(null);
     setSuccessMessage(null);
   };
@@ -195,10 +196,11 @@ export function CreateUserModal() {
                         onChange={(e) => setProgramme(e.target.value)}
                         className="w-full px-3 py-2 rounded-xl bg-white dark:bg-[#222222] border border-[#E5E5E5] dark:border-[#383838] text-xs font-medium text-[#171717] dark:text-white outline-none focus:border-[#FFA500]"
                       >
-                        <option value="Génie Logiciel">Génie Logiciel</option>
-                        <option value="Réseaux & Télécoms">Réseaux & Télécoms</option>
-                        <option value="Sécurité Informatique">Sécurité Informatique</option>
-                        <option value="Systèmes d'Information">Systèmes d&apos;Information</option>
+                        {PROGRAMMES.map((p) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>

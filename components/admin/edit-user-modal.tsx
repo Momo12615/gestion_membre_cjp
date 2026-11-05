@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { updateUser } from "@/actions/users";
 import { PermissionCode } from "@/lib/types";
+import { PROGRAMMES } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +49,7 @@ export function EditUserModal({ user }: EditUserModalProps) {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<PermissionCode>(user.permission_code);
   const [licence, setLicence] = useState(user.licence || "L2");
-  const [programme, setProgramme] = useState(user.programme || "Génie Logiciel");
+  const [programme, setProgramme] = useState(user.programme || PROGRAMMES[0]);
   const [isActive, setIsActive] = useState(user.is_active);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -61,7 +62,7 @@ export function EditUserModal({ user }: EditUserModalProps) {
     setPassword("");
     setRole(user.permission_code);
     setLicence(user.licence || "L2");
-    setProgramme(user.programme || "Génie Logiciel");
+    setProgramme(user.programme || PROGRAMMES[0]);
     setIsActive(user.is_active);
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -266,12 +267,11 @@ export function EditUserModal({ user }: EditUserModalProps) {
                         onChange={(e) => setProgramme(e.target.value)}
                         className="w-full h-9 px-2.5 rounded-lg bg-white dark:bg-[#1C1C1C] border border-[#E5E5E5] dark:border-[#383838] text-xs text-[#171717] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FFA500]/50"
                       >
-                        <option value="Génie Logiciel">Génie Logiciel (GL)</option>
-                        <option value="Réseau & Télécom">Réseau & Télécom (RT)</option>
-                        <option value="Système d'Information">Système d&apos;Information (SI)</option>
-                        <option value="Informatique Générale">Informatique Générale</option>
-                        <option value="Cybersécurité">Cybersécurité</option>
-                        <option value="Intelligence Artificielle">Intelligence Artificielle</option>
+                        {PROGRAMMES.map((p) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
