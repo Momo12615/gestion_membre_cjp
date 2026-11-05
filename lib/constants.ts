@@ -38,7 +38,7 @@ export const PROGRAMMES = [
   "Informatique",
   "Miage",
   "Mathematique",
-  "Energie Photovoltaique"
+  "Energie Photovoltaique",
 ] as const;
 
 export type Programme = (typeof PROGRAMMES)[number];
