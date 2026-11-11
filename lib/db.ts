@@ -101,7 +101,7 @@ const customFetch = (input: any, init?: any) => {
     typeof AbortSignal !== "undefined" &&
     typeof AbortSignal.timeout === "function"
   ) {
-    return fetch(input, { ...init, signal: AbortSignal.timeout(8000) });
+    return fetch(input, { ...init, signal: AbortSignal.timeout(15000) });
   }
   return fetch(input, init);
 };

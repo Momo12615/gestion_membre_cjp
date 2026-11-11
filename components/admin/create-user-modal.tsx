@@ -24,6 +24,7 @@ export function CreateUserModal() {
   const [role, setRole] = useState<PermissionCode>("CHEF_DE_CLASSE");
   const [licence, setLicence] = useState("L2");
   const [programme, setProgramme] = useState<string>(PROGRAMMES[0]);
+  const [customProgramme, setCustomProgramme] = useState("");
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -61,6 +62,7 @@ export function CreateUserModal() {
     setRole("CHEF_DE_CLASSE");
     setLicence("L2");
     setProgramme(PROGRAMMES[0]);
+    setCustomProgramme("");
     setErrorMessage(null);
     setSuccessMessage(null);
   };
@@ -84,6 +86,18 @@ export function CreateUserModal() {
       return;
     }
 
+    const finalProgramme =
+      role === "CHEF_DE_CLASSE"
+        ? programme === "__AUTRE__"
+          ? customProgramme.trim()
+          : programme.trim()
+        : undefined;
+
+    if (role === "CHEF_DE_CLASSE" && !finalProgramme) {
+      setErrorMessage("Veuillez spécifier le département du chef de classe.");
+      return;
+    }
+
     startTransition(async () => {
       const res = await createUser({
         first_name: firstName,
@@ -92,7 +106,7 @@ export function CreateUserModal() {
         password: password,
         permission_code: role,
         licence: role === "CHEF_DE_CLASSE" ? licence : undefined,
-        programme: role === "CHEF_DE_CLASSE" ? programme : undefined,
+        programme: finalProgramme,
       });
 
       if (!res.success) {
@@ -254,7 +268,11 @@ export function CreateUserModal() {
                       </label>
                       <select
                         value={programme}
-                        onChange={(e) => setProgramme(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setProgramme(val);
+                          if (val !== "__AUTRE__") setCustomProgramme("");
+                        }}
                         className="w-full px-3 py-2 text-xs rounded-xl border border-[#E5E5E5] dark:border-[#383838] bg-white dark:bg-[#1a1a1a] text-[#171717] dark:text-white focus:outline-hidden focus:border-[#FFA500]"
                       >
                         {PROGRAMMES.map((p) => (
@@ -262,9 +280,27 @@ export function CreateUserModal() {
                             {p}
                           </option>
                         ))}
+                        <option value="__AUTRE__">➕ Autre département (saisie libre)...</option>
                       </select>
                     </div>
                   </div>
+
+                  {programme === "__AUTRE__" && (
+                    <div className="mt-2.5 pt-2 border-t border-[#E5E5E5] dark:border-[#383838] space-y-1 animate-in fade-in duration-200">
+                      <label className="text-[11px] font-semibold text-[#FFA500] block">
+                        Nom du département personnalisé *
+                      </label>
+                      <Input
+                        autoFocus
+                        required
+                        placeholder="Ex: Génie Civil, Droit, Philosophie..."
+                        value={customProgramme}
+                        onChange={(e) => setCustomProgramme(e.target.value)}
+                        disabled={isPending}
+                        className="bg-white dark:bg-[#1a1a1a]"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 

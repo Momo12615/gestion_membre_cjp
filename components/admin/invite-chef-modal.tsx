@@ -11,9 +11,6 @@ import {
   AlertCircle,
   CheckCircle2,
   Phone,
-  Mail,
-  User,
-  Sparkles,
   Copy,
   Check,
   MessageSquare,
@@ -38,11 +35,10 @@ export function InviteChefModal({ className, size = "sm" }: InviteChefModalProps
   const [mounted, setMounted] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
   const [licence, setLicence] = useState("L2");
   const [programme, setProgramme] = useState<string>(PROGRAMMES[0]);
+  const [customProgramme, setCustomProgramme] = useState("");
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successResult, setSuccessResult] = useState<{
@@ -79,11 +75,10 @@ export function InviteChefModal({ className, size = "sm" }: InviteChefModalProps
   }, [isOpen, isPending]);
 
   const resetForm = () => {
-    setFullName("");
     setPhone("");
-    setEmail("");
     setLicence("L2");
     setProgramme(PROGRAMMES[0]);
+    setCustomProgramme("");
     setErrorMessage(null);
     setSuccessResult(null);
     setCopied(false);
@@ -116,19 +111,29 @@ export function InviteChefModal({ className, size = "sm" }: InviteChefModalProps
     setErrorMessage(null);
     setSuccessResult(null);
 
-    if (!fullName.trim() || !phone.trim()) {
-      setErrorMessage("Veuillez renseigner le nom complet et le numéro de téléphone.");
+    const isCustom = programme === "__AUTRE__";
+    const finalProgramme = isCustom ? customProgramme.trim() : programme.trim();
+
+    if (!phone.trim()) {
+      setErrorMessage("Veuillez renseigner le numéro de téléphone.");
+      return;
+    }
+
+    if (!finalProgramme) {
+      setErrorMessage(
+        isCustom
+          ? "Veuillez préciser le nom du département personnalisé."
+          : "Veuillez sélectionner un département."
+      );
       return;
     }
 
     startTransition(async () => {
       const clientOrigin = typeof window !== "undefined" ? window.location.origin : undefined;
       const res = await inviteChefDeClasseAction({
-        fullName: fullName.trim(),
         phone: phone.trim(),
         licence,
-        programme,
-        email: email.trim() || undefined,
+        programme: finalProgramme,
         clientOrigin,
       });
 
@@ -287,34 +292,19 @@ export function InviteChefModal({ className, size = "sm" }: InviteChefModalProps
                 </div>
               )}
 
-              {/* NOM COMPLET */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#171717] dark:text-[#E5E5E5] flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-[#FFA500]" />
-                  Nom complet du Chef de classe *
-                </label>
-                <Input
-                  required
-                  placeholder="Ex: Mamadou Bah ou Aïssatou Diallo"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  disabled={isPending}
-                />
-              </div>
-
               {/* TÉLÉPHONE GUINÉE (NIMBA SMS) */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-[#171717] dark:text-[#E5E5E5] flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
                     <Phone className="w-3.5 h-3.5 text-[#FFA500]" />
-                    Numéro de Téléphone (destinataire SMS) *
+                    Numéro de Téléphone *
                   </span>
                   <span className="text-[10px] text-[#FFA500] font-mono">Format : 6XX XX XX XX</span>
                 </label>
                 <Input
                   type="tel"
                   required
-                  placeholder="Ex: 620 00 00 00 ou +224 620 00 00 00"
+                  placeholder="Ex: 620 00 00 00"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   disabled={isPending}
@@ -329,7 +319,7 @@ export function InviteChefModal({ className, size = "sm" }: InviteChefModalProps
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-semibold text-[#171717] dark:text-white">
                     <GraduationCap className="w-4 h-4 text-[#FFA500]" />
-                    <span>Classe & Promotion Assignée</span>
+                    <span>Classe & Département Assignés</span>
                   </div>
                   <Badge variant="cjp" size="sm" className="text-[10px]">
                     Verrouillage Strict
@@ -357,11 +347,17 @@ export function InviteChefModal({ className, size = "sm" }: InviteChefModalProps
 
                   <div>
                     <label className="text-[11px] font-medium text-[#737373] dark:text-[#A3A3A3] block mb-1">
-                      Programme / Filière *
+                      Département / Filière *
                     </label>
                     <select
                       value={programme}
-                      onChange={(e) => setProgramme(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setProgramme(val);
+                        if (val !== "__AUTRE__") {
+                          setCustomProgramme("");
+                        }
+                      }}
                       disabled={isPending}
                       className="w-full px-3 py-2 text-xs rounded-xl border border-[#E5E5E5] dark:border-[#383838] bg-white dark:bg-[#1a1a1a] text-[#171717] dark:text-white focus:outline-hidden focus:border-[#FFA500] cursor-pointer"
                     >
@@ -370,41 +366,53 @@ export function InviteChefModal({ className, size = "sm" }: InviteChefModalProps
                           {p}
                         </option>
                       ))}
+                      <option value="__AUTRE__" className="font-semibold text-[#FFA500]">
+                        ➕ Autre département (saisie libre)...
+                      </option>
                     </select>
                   </div>
                 </div>
-              </div>
 
-              {/* EMAIL OPTIONNEL */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#171717] dark:text-[#E5E5E5] flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <Mail className="w-3.5 h-3.5 text-[#FFA500]" />
-                    Adresse Email (Optionnelle)
-                  </span>
-                  <span className="text-[10px] text-[#737373] dark:text-[#A3A3A3]">Auto-généré si vide</span>
-                </label>
-                <Input
-                  type="email"
-                  placeholder="Ex: chef.classe@cjp.edu (facultatif)"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isPending}
-                />
+                {/* CHAMP SAISIE LIBRE SI "AUTRE DÉPARTEMENT" EST SÉLECTIONNÉ */}
+                {programme === "__AUTRE__" && (
+                  <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#383838] space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <label className="text-[11px] font-semibold text-[#FFA500] flex items-center justify-between">
+                      <span>Préciser le département / filière *</span>
+                      <span className="text-[10px] text-[#737373] dark:text-[#A3A3A3] font-normal">Saisie libre</span>
+                    </label>
+                    <Input
+                      autoFocus
+                      required
+                      placeholder="Ex: Génie Civil, Droit Public, Philosophie, Économie..."
+                      value={customProgramme}
+                      onChange={(e) => setCustomProgramme(e.target.value)}
+                      disabled={isPending}
+                      className="bg-white dark:bg-[#1a1a1a]"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* APERÇU DU MESSAGE SMS */}
-              <div className="p-3 rounded-xl bg-[#FFF4D6]/50 dark:bg-[#FFA500]/10 border border-[#FFA500]/25 space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] font-semibold text-[#171717] dark:text-white">
-                  <span className="flex items-center gap-1.5">
-                    <MessageSquare className="w-3.5 h-3.5 text-[#FFA500]" />
-                    Aperçu du SMS envoyé (Expéditeur : GuineeEcole)
-                  </span>
-                </div>
-                <p className="text-[11px] font-mono text-[#737373] dark:text-[#D4D4D4] leading-relaxed bg-white/60 dark:bg-black/30 p-2.5 rounded-lg border border-[#FFA500]/15">
-                  &ldquo;CJP: Bonjour {fullName || "[Nom complet]"}, vous etes designe(e) Chef de classe ({licence} - {programme}). Activez votre acces ici : https://.../invitation?token=...&rdquo;
-                </p>
-              </div>
+              {(() => {
+                const effectiveProgramme =
+                  programme === "__AUTRE__"
+                    ? customProgramme.trim() || "[Département]"
+                    : programme;
+                return (
+                  <div className="p-3 rounded-xl bg-[#FFF4D6]/50 dark:bg-[#FFA500]/10 border border-[#FFA500]/25 space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-[#171717] dark:text-white">
+                      <span className="flex items-center gap-1.5">
+                        <MessageSquare className="w-3.5 h-3.5 text-[#FFA500]" />
+                        Aperçu du SMS (Expéditeur : GuineeEcole)
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-mono text-[#737373] dark:text-[#D4D4D4] leading-relaxed bg-white/60 dark:bg-black/30 p-2.5 rounded-lg border border-[#FFA500]/15">
+                      &ldquo;CJP: Vous etes designe(e) Chef de classe ({licence} - {effectiveProgramme}). Activez votre acces ici : https://.../invitation?token=...&rdquo;
+                    </p>
+                  </div>
+                );
+              })()}
             </form>
 
             {/* 3. PIED DE PAGE FIXE */}
@@ -444,4 +452,3 @@ export function InviteChefModal({ className, size = "sm" }: InviteChefModalProps
     </>
   );
 }
-

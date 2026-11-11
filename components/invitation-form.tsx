@@ -29,6 +29,13 @@ interface InvitationFormProps {
 export default function InvitationForm({ invitation }: InvitationFormProps) {
   const [isPending, startTransition] = useTransition();
 
+  const isChef = invitation.permission_code === "CHEF_DE_CLASSE";
+  const initialFirstName = invitation.first_name === "Chef" ? "" : invitation.first_name;
+  const initialLastName = invitation.last_name === "de Classe" ? "" : invitation.last_name;
+
+  const [firstName, setFirstName] = useState(initialFirstName);
+  const [lastName, setLastName] = useState(initialLastName);
+
   // Mots de passe
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -51,6 +58,11 @@ export default function InvitationForm({ invitation }: InvitationFormProps) {
     setErrorMessage(null);
     setSuccessMessage(null);
 
+    if (isChef && (!firstName.trim() || !lastName.trim())) {
+      setErrorMessage("Veuillez renseigner votre prénom et votre nom.");
+      return;
+    }
+
     if (!hasMinLength) {
       setErrorMessage("Le mot de passe doit comporter au moins 6 caractères.");
       return;
@@ -66,6 +78,8 @@ export default function InvitationForm({ invitation }: InvitationFormProps) {
         token: invitation.token,
         password,
         confirmPassword,
+        firstName: firstName.trim() || undefined,
+        lastName: lastName.trim() || undefined,
       });
 
       if (!res.success) {
@@ -147,7 +161,7 @@ export default function InvitationForm({ invitation }: InvitationFormProps) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-medium text-[#737373] dark:text-[#A3A3A3] mb-1">
-                  Prénom
+                  Prénom {isChef ? "*" : ""}
                 </label>
                 <div className="relative flex items-center">
                   <div className="absolute left-3 flex items-center pointer-events-none text-[#737373] dark:text-[#A3A3A3]">
@@ -155,20 +169,28 @@ export default function InvitationForm({ invitation }: InvitationFormProps) {
                   </div>
                   <input
                     type="text"
-                    value={invitation.first_name}
-                    readOnly
-                    tabIndex={-1}
-                    className="w-full rounded-lg bg-neutral-100 dark:bg-neutral-900 border border-[#E5E5E5] dark:border-[#383838] text-[#171717] dark:text-neutral-200 text-xs sm:text-sm py-2 pl-9 pr-8 cursor-not-allowed select-none focus:outline-none"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    readOnly={!isChef}
+                    required={isChef}
+                    placeholder="Votre prénom"
+                    className={`w-full rounded-lg border text-xs sm:text-sm py-2 pl-9 pr-8 focus:outline-none transition-colors ${
+                      isChef
+                        ? "bg-white dark:bg-[#1a1a1a] border-[#E5E5E5] dark:border-[#383838] text-[#171717] dark:text-white focus:border-[#FFA500]"
+                        : "bg-neutral-100 dark:bg-neutral-900 border-[#E5E5E5] dark:border-[#383838] text-[#171717] dark:text-neutral-200 cursor-not-allowed select-none"
+                    }`}
                   />
-                  <div className="absolute right-2.5 text-neutral-400 dark:text-neutral-500">
-                    <Lock className="w-3 h-3" />
-                  </div>
+                  {!isChef && (
+                    <div className="absolute right-2.5 text-neutral-400 dark:text-neutral-500">
+                      <Lock className="w-3 h-3" />
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div>
                 <label className="block text-[11px] font-medium text-[#737373] dark:text-[#A3A3A3] mb-1">
-                  Nom
+                  Nom {isChef ? "*" : ""}
                 </label>
                 <div className="relative flex items-center">
                   <div className="absolute left-3 flex items-center pointer-events-none text-[#737373] dark:text-[#A3A3A3]">
@@ -176,14 +198,22 @@ export default function InvitationForm({ invitation }: InvitationFormProps) {
                   </div>
                   <input
                     type="text"
-                    value={invitation.last_name}
-                    readOnly
-                    tabIndex={-1}
-                    className="w-full rounded-lg bg-neutral-100 dark:bg-neutral-900 border border-[#E5E5E5] dark:border-[#383838] text-[#171717] dark:text-neutral-200 text-xs sm:text-sm py-2 pl-9 pr-8 cursor-not-allowed select-none focus:outline-none"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    readOnly={!isChef}
+                    required={isChef}
+                    placeholder="Votre nom de famille"
+                    className={`w-full rounded-lg border text-xs sm:text-sm py-2 pl-9 pr-8 focus:outline-none transition-colors ${
+                      isChef
+                        ? "bg-white dark:bg-[#1a1a1a] border-[#E5E5E5] dark:border-[#383838] text-[#171717] dark:text-white focus:border-[#FFA500]"
+                        : "bg-neutral-100 dark:bg-neutral-900 border-[#E5E5E5] dark:border-[#383838] text-[#171717] dark:text-neutral-200 cursor-not-allowed select-none"
+                    }`}
                   />
-                  <div className="absolute right-2.5 text-neutral-400 dark:text-neutral-500">
-                    <Lock className="w-3 h-3" />
-                  </div>
+                  {!isChef && (
+                    <div className="absolute right-2.5 text-neutral-400 dark:text-neutral-500">
+                      <Lock className="w-3 h-3" />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

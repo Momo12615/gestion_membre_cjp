@@ -10,12 +10,18 @@ export async function getCurrentUserOrThrow(): Promise<SessionUser> {
 
   // Vérification en temps réel si le compte est actif / non bloqué par l'Admin
   const res = await db.execute({
-    sql: "SELECT is_active FROM user WHERE id = ? LIMIT 1;",
+    sql: "SELECT is_active, licence, programme, first_name, last_name FROM user WHERE id = ? LIMIT 1;",
     args: [user.id],
   });
   if (res.rows.length === 0 || Number(res.rows[0].is_active) !== 1) {
     throw new Error("Votre compte a été bloqué par l'administrateur.");
   }
+
+  const row = res.rows[0];
+  user.licence = (row.licence as string) || user.licence || null;
+  user.programme = (row.programme as string) || user.programme || null;
+  if (row.first_name) user.first_name = row.first_name as string;
+  if (row.last_name) user.last_name = row.last_name as string;
 
   return user;
 }

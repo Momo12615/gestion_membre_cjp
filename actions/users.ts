@@ -246,8 +246,8 @@ export async function updateUser(
           is_active = COALESCE(?, is_active),
           first_name = COALESCE(?, first_name),
           last_name = COALESCE(?, last_name),
-          licence = ?,
-          programme = ?
+          licence = COALESCE(?, licence),
+          programme = COALESCE(?, programme)
         WHERE id = ?;
       `,
       args: [

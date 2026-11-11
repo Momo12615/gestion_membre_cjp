@@ -1,4 +1,5 @@
-import { getSession } from "@/lib/auth";
+import { getSession, createSession } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { getClasseDashboardData } from "@/lib/dashboard-data";
 import { TARIF_INSCRIPTION, TARIF_REINSCRIPTION } from "@/lib/constants";
@@ -40,6 +41,48 @@ export default async function ClasseDashboardPage() {
     redirect("/profil");
   }
 
+  // Récupération des informations de classe en temps réel depuis la base de données
+  let chefLicence = session.licence;
+  let chefProgramme = session.programme;
+  let chefFirstName = session.first_name;
+  let chefLastName = session.last_name;
+
+  try {
+    const userRes = await db.execute({
+      sql: "SELECT licence, programme, first_name, last_name FROM user WHERE id = ? LIMIT 1;",
+      args: [session.id],
+    });
+    if (userRes.rows.length > 0) {
+      const dbRow = userRes.rows[0];
+      if (dbRow.licence) chefLicence = dbRow.licence as string;
+      if (dbRow.programme) chefProgramme = dbRow.programme as string;
+      if (dbRow.first_name) chefFirstName = dbRow.first_name as string;
+      if (dbRow.last_name) chefLastName = dbRow.last_name as string;
+    }
+  } catch (err) {
+    console.error("Erreur récupération classe en BDD:", err);
+  }
+
+  // Fallbacks sécurisés
+  chefLicence = chefLicence || "L2";
+  chefProgramme = chefProgramme || "Génie Logiciel";
+
+  // Auto-guérison de la session si le cookie était incomplet ou désynchronisé
+  if (
+    session.licence !== chefLicence ||
+    session.programme !== chefProgramme ||
+    session.first_name !== chefFirstName ||
+    session.last_name !== chefLastName
+  ) {
+    session.licence = chefLicence;
+    session.programme = chefProgramme;
+    session.first_name = chefFirstName;
+    session.last_name = chefLastName;
+    try {
+      await createSession(session);
+    } catch (_) {}
+  }
+
   const { inscriptionsOpen, members } = await getClasseDashboardData(session);
 
   // Calculs financiers officiels CJP (20K Inscription / 10K Réinscription)
@@ -50,9 +93,6 @@ export default async function ClasseDashboardPage() {
   const totalReinscriptions = reinscritsCount * TARIF_REINSCRIPTION;
 
   const totalCollecte = totalInscriptions + totalReinscriptions;
-
-  const chefLicence = session.licence || "L2";
-  const chefProgramme = session.programme || "Génie Logiciel";
 
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-[#171717] text-[#171717] dark:text-white transition-colors duration-200">

@@ -111,6 +111,8 @@ export async function acceptInvitationAction(input: {
   token: string;
   password: string;
   confirmPassword: string;
+  firstName?: string;
+  lastName?: string;
 }): Promise<{
   success: boolean;
   error?: string;
@@ -168,6 +170,9 @@ export async function acceptInvitationAction(input: {
       args: [normalizedEmail],
     });
 
+    const finalFirstName = input.firstName?.trim() || invitation.first_name || "Chef";
+    const finalLastName = input.lastName?.trim() || invitation.last_name || "de Classe";
+
     let userId: number;
 
     if (existingUserRes.rows.length > 0) {
@@ -182,8 +187,8 @@ export async function acceptInvitationAction(input: {
         `,
         args: [
           passwordHash,
-          invitation.first_name,
-          invitation.last_name,
+          finalFirstName,
+          finalLastName,
           permissionId,
           invitation.licence || null,
           invitation.programme || null,
@@ -203,8 +208,8 @@ export async function acceptInvitationAction(input: {
           normalizedEmail,
           passwordHash,
           permissionId,
-          invitation.first_name,
-          invitation.last_name,
+          finalFirstName,
+          finalLastName,
           invitation.licence || null,
           invitation.programme || null,
         ],
@@ -224,8 +229,10 @@ export async function acceptInvitationAction(input: {
       email: normalizedEmail,
       permission_code: permissionCode,
       permission_name: permissionName,
-      first_name: invitation.first_name,
-      last_name: invitation.last_name,
+      first_name: finalFirstName,
+      last_name: finalLastName,
+      licence: invitation.licence || null,
+      programme: invitation.programme || null,
     };
 
     await createSession(sessionUser);
@@ -355,10 +362,10 @@ export async function createCommitteeInvitation(
  * Invite un Chef de classe et lui envoie un SMS automatique via Nimba SMS
  */
 export async function inviteChefDeClasseAction(input: {
-  fullName: string;
   phone: string;
   licence: string;
   programme: string;
+  fullName?: string;
   email?: string;
   clientOrigin?: string;
 }): Promise<{
@@ -376,24 +383,24 @@ export async function inviteChefDeClasseAction(input: {
       return { success: false, error: "Action réservée aux administrateurs." };
     }
 
-    const { fullName, phone, licence, programme } = input;
-
-    if (!fullName || !fullName.trim()) {
-      return { success: false, error: "Veuillez renseigner le nom complet du chef de classe." };
-    }
+    const { phone, licence, programme } = input;
 
     if (!phone || !phone.trim()) {
       return { success: false, error: "Le numéro de téléphone est obligatoire pour l'envoi du SMS." };
     }
 
     if (!licence || !programme) {
-      return { success: false, error: "Veuillez sélectionner la classe (Licence et Programme)." };
+      return { success: false, error: "Veuillez sélectionner la licence et le département." };
     }
 
-    // Découpage Nom complet
-    const nameParts = fullName.trim().split(/\s+/);
-    const firstName = nameParts[0] || "Chef";
-    const lastName = nameParts.slice(1).join(" ") || "de Classe";
+    // Découpage Nom complet ou valeurs par défaut
+    let firstName = "Chef";
+    let lastName = "de Classe";
+    if (input.fullName && input.fullName.trim()) {
+      const parts = input.fullName.trim().split(/\s+/);
+      firstName = parts[0] || "Chef";
+      lastName = parts.slice(1).join(" ") || "de Classe";
+    }
 
     const formattedPhone = formatGuineanPhoneNumber(phone);
 
@@ -414,7 +421,7 @@ export async function inviteChefDeClasseAction(input: {
     if (existingUserRes.rows.length > 0) {
       return {
         success: false,
-        error: `Un compte utilisateur avec l'adresse email ${email} existe déjà.`,
+        error: `Un compte utilisateur avec ce numéro (${formattedPhone}) existe déjà.`,
       };
     }
 
@@ -471,7 +478,9 @@ export async function inviteChefDeClasseAction(input: {
     const invitationUrl = `${baseUrl}/invitation?token=${token}`;
 
     // Message SMS officiel
-    const smsMessage = `CJP: Bonjour ${firstName} ${lastName}, vous etes designe(e) Chef de classe (${licence} - ${programme}). Activez votre acces ici : ${invitationUrl}`;
+    const smsMessage = input.fullName?.trim()
+      ? `CJP: Bonjour ${firstName} ${lastName}, vous etes designe(e) Chef de classe (${licence} - ${programme}). Activez votre acces ici : ${invitationUrl}`
+      : `CJP: Vous etes designe(e) Chef de classe (${licence} - ${programme}). Activez votre acces ici : ${invitationUrl}`;
 
     // Envoi via Nimba SMS
     const smsRes = await sendNimbaSms(formattedPhone, smsMessage);

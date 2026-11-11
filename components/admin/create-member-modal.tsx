@@ -47,6 +47,7 @@ export function CreateMemberModal({
   const [phone, setPhone] = useState("");
   const [licence, setLicence] = useState("L1");
   const [programme, setProgramme] = useState<string>(PROGRAMMES[0]);
+  const [customProgramme, setCustomProgramme] = useState("");
   const [typeInscription, setTypeInscription] = useState<"inscrit" | "reinscrit">("inscrit");
   const [section, setSection] = useState<SectionFormation>("Dev Mobile & Site Web");
 
@@ -87,6 +88,7 @@ export function CreateMemberModal({
     setPhone("");
     setLicence("L1");
     setProgramme(PROGRAMMES[0]);
+    setCustomProgramme("");
     setTypeInscription("inscrit");
     setSection("Dev Mobile & Site Web");
     setErrorMessage(null);
@@ -119,6 +121,12 @@ export function CreateMemberModal({
       return;
     }
 
+    const finalProgramme = programme === "__AUTRE__" ? customProgramme.trim() : programme.trim();
+    if (!finalProgramme) {
+      setErrorMessage("Veuillez spécifier le département / filière.");
+      return;
+    }
+
     startTransition(async () => {
       const finalType = isL1 ? "inscrit" : typeInscription;
       const res = await createMember({
@@ -127,7 +135,7 @@ export function CreateMemberModal({
         email: email,
         phone: phone || undefined,
         licence: licence,
-        programme: programme,
+        programme: finalProgramme,
         role_club: "Membre",
         type_inscription: finalType,
         section: section,
@@ -325,7 +333,11 @@ export function CreateMemberModal({
                     </label>
                     <select
                       value={programme}
-                      onChange={(e) => setProgramme(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setProgramme(val);
+                        if (val !== "__AUTRE__") setCustomProgramme("");
+                      }}
                       disabled={isPending}
                       className="w-full px-3 py-2 text-xs rounded-lg border border-[#E5E5E5] dark:border-[#383838] bg-white dark:bg-[#1c1c1c] text-[#171717] dark:text-white focus:outline-hidden focus:ring-2 focus:ring-[#FFA500]"
                     >
@@ -334,9 +346,27 @@ export function CreateMemberModal({
                           {p}
                         </option>
                       ))}
+                      <option value="__AUTRE__">➕ Autre département (saisie libre)...</option>
                     </select>
                   </div>
                 </div>
+
+                {programme === "__AUTRE__" && (
+                  <div className="mt-2.5 pt-2 border-t border-[#E5E5E5] dark:border-[#383838] space-y-1 animate-in fade-in duration-200">
+                    <label className="text-[11px] font-semibold text-[#FFA500] block">
+                      Nom du département personnalisé *
+                    </label>
+                    <Input
+                      autoFocus
+                      required
+                      placeholder="Ex: Génie Civil, Droit, Philosophie..."
+                      value={customProgramme}
+                      onChange={(e) => setCustomProgramme(e.target.value)}
+                      disabled={isPending}
+                      className="bg-white dark:bg-[#1c1c1c]"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* DOMAINE DE FORMATION (SECTION) */}

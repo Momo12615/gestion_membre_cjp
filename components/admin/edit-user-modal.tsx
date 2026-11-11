@@ -48,9 +48,13 @@ export function EditUserModal({ user }: EditUserModalProps) {
   const [lastName, setLastName] = useState(user.last_name || "");
   const [email, setEmail] = useState(user.email || "");
   const [password, setPassword] = useState("");
+  const isCustomInit = user.programme ? !(PROGRAMMES as readonly string[]).includes(user.programme) : false;
   const [role, setRole] = useState<PermissionCode>(user.permission_code);
   const [licence, setLicence] = useState(user.licence || "L2");
-  const [programme, setProgramme] = useState(user.programme || PROGRAMMES[0]);
+  const [programme, setProgramme] = useState(
+    isCustomInit ? "__AUTRE__" : user.programme || PROGRAMMES[0]
+  );
+  const [customProgramme, setCustomProgramme] = useState(isCustomInit ? user.programme || "" : "");
   const [isActive, setIsActive] = useState(user.is_active);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -82,13 +86,15 @@ export function EditUserModal({ user }: EditUserModalProps) {
   }, [isOpen, isPending]);
 
   const handleOpen = () => {
+    const isCustom = user.programme ? !(PROGRAMMES as readonly string[]).includes(user.programme) : false;
     setFirstName(user.first_name || "");
     setLastName(user.last_name || "");
     setEmail(user.email || "");
     setPassword("");
     setRole(user.permission_code);
     setLicence(user.licence || "L2");
-    setProgramme(user.programme || PROGRAMMES[0]);
+    setProgramme(isCustom ? "__AUTRE__" : user.programme || PROGRAMMES[0]);
+    setCustomProgramme(isCustom ? user.programme || "" : "");
     setIsActive(user.is_active);
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -109,6 +115,18 @@ export function EditUserModal({ user }: EditUserModalProps) {
       return;
     }
 
+    const finalProgramme =
+      role === "CHEF_DE_CLASSE"
+        ? programme === "__AUTRE__"
+          ? customProgramme.trim()
+          : programme.trim()
+        : undefined;
+
+    if (role === "CHEF_DE_CLASSE" && !finalProgramme) {
+      setErrorMessage("Veuillez spécifier le département du chef de classe.");
+      return;
+    }
+
     startTransition(async () => {
       const res = await updateUser(user.id, {
         first_name: firstName,
@@ -117,7 +135,7 @@ export function EditUserModal({ user }: EditUserModalProps) {
         password: password.trim() ? password.trim() : undefined,
         permission_code: role,
         licence: role === "CHEF_DE_CLASSE" ? licence : undefined,
-        programme: role === "CHEF_DE_CLASSE" ? programme : undefined,
+        programme: finalProgramme,
         is_active: isActive,
       });
 
@@ -302,7 +320,11 @@ export function EditUserModal({ user }: EditUserModalProps) {
                       </label>
                       <select
                         value={programme}
-                        onChange={(e) => setProgramme(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setProgramme(val);
+                          if (val !== "__AUTRE__") setCustomProgramme("");
+                        }}
                         className="w-full h-9 px-2.5 rounded-lg bg-white dark:bg-[#1C1C1C] border border-[#E5E5E5] dark:border-[#383838] text-xs text-[#171717] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FFA500]/50 cursor-pointer"
                       >
                         {PROGRAMMES.map((p) => (
@@ -310,9 +332,27 @@ export function EditUserModal({ user }: EditUserModalProps) {
                             {p}
                           </option>
                         ))}
+                        <option value="__AUTRE__">➕ Autre département (saisie libre)...</option>
                       </select>
                     </div>
                   </div>
+
+                  {programme === "__AUTRE__" && (
+                    <div className="mt-2.5 pt-2 border-t border-[#E5E5E5] dark:border-[#383838] space-y-1 animate-in fade-in duration-200">
+                      <label className="block text-[11px] font-semibold text-[#FFA500]">
+                        Nom du département personnalisé *
+                      </label>
+                      <Input
+                        autoFocus
+                        required
+                        placeholder="Ex: Génie Civil, Droit, Philosophie..."
+                        value={customProgramme}
+                        onChange={(e) => setCustomProgramme(e.target.value)}
+                        disabled={isPending}
+                        className="h-9 text-xs bg-white dark:bg-[#1C1C1C]"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
