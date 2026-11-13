@@ -6,6 +6,8 @@ import { Footer } from "@/components/layout/footer";
 import { Badge } from "@/components/ui/badge";
 import { LogoutButton } from "@/components/logout-button";
 import { CreateMemberModal } from "@/components/admin/create-member-modal";
+import { EditMemberModal } from "@/components/members/edit-member-modal";
+import { MemberDeleteButton } from "@/components/members/member-delete-button";
 import { EditProfileModal } from "@/components/profile/edit-profile-modal";
 import { Users, UserPlus, UserCheck, Sparkles, ShieldCheck } from "lucide-react";
 
@@ -268,9 +270,15 @@ export default async function BureauDashboardPage() {
                               {m.added_by_name || "Système"}
                             </strong>
                           </span>
-                          <Badge variant="cjp" size="sm" dot className="text-[10px]">
-                            {m.status || "Actif"}
-                          </Badge>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="cjp" size="sm" dot className="text-[10px]">
+                              {m.status || "Actif"}
+                            </Badge>
+                            <div className="flex items-center gap-1 pl-1 border-l border-[#E5E5E5] dark:border-white/10">
+                              <EditMemberModal member={m} canChangeClass={true} />
+                              <MemberDeleteButton id={m.id} name={`${m.first_name} ${m.last_name}`} />
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
@@ -286,6 +294,7 @@ export default async function BureauDashboardPage() {
                         <th className="px-6 py-3.5">Classe & Section</th>
                         <th className="px-6 py-3.5">Type</th>
                         <th className="px-6 py-3.5">Inscrit par</th>
+                        <th className="px-6 py-3.5 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#E5E5E5] dark:divide-white/[0.06]">
@@ -318,6 +327,12 @@ export default async function BureauDashboardPage() {
                           </td>
                           <td className="px-6 py-4 text-xs text-[#737373] dark:text-[#A3A3A3]">
                             {m.added_by_name || "Système"}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <EditMemberModal member={m} canChangeClass={true} />
+                              <MemberDeleteButton id={m.id} name={`${m.first_name} ${m.last_name}`} />
+                            </div>
                           </td>
                         </tr>
                       ))}

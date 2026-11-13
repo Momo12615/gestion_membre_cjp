@@ -18,6 +18,8 @@ import { InviteChefModal } from "@/components/admin/invite-chef-modal";
 import { CreateOrganisateurModal } from "@/components/admin/create-organisateur-modal";
 import { EditOrganisateurModal } from "@/components/admin/edit-organisateur-modal";
 import { CreateMemberModal } from "@/components/admin/create-member-modal";
+import { EditMemberModal } from "@/components/members/edit-member-modal";
+import { MemberDeleteButton } from "@/components/members/member-delete-button";
 import { UserToggleButton } from "@/components/admin/user-toggle-button";
 import { EditUserModal } from "@/components/admin/edit-user-modal";
 import { UserDeleteButton } from "@/components/admin/user-delete-button";
@@ -661,9 +663,15 @@ export function AdminTabsView({ users, organisateurs, members }: AdminTabsViewPr
                             {m.added_by_name || "Système"}
                           </strong>
                         </span>
-                        <Badge variant="cjp" size="sm" dot className="shrink-0 text-[10px]">
-                          {m.status || "Actif"}
-                        </Badge>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="cjp" size="sm" dot className="shrink-0 text-[10px]">
+                            {m.status || "Actif"}
+                          </Badge>
+                          <div className="flex items-center gap-1 pl-1 border-l border-[#E5E5E5] dark:border-[#383838]">
+                            <EditMemberModal member={m} canChangeClass={true} />
+                            <MemberDeleteButton id={m.id} name={`${m.first_name} ${m.last_name}`} />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -680,6 +688,7 @@ export function AdminTabsView({ users, organisateurs, members }: AdminTabsViewPr
                         <th className="px-6 py-3.5">Type & Tarif</th>
                         <th className="px-6 py-3.5">Inscrit par</th>
                         <th className="px-6 py-3.5">Statut</th>
+                        <th className="px-6 py-3.5 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#E5E5E5] dark:divide-[#383838]">
@@ -741,6 +750,12 @@ export function AdminTabsView({ users, organisateurs, members }: AdminTabsViewPr
                             >
                               {m.status || "Actif"}
                             </Badge>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <EditMemberModal member={m} canChangeClass={true} />
+                              <MemberDeleteButton id={m.id} name={`${m.first_name} ${m.last_name}`} />
+                            </div>
                           </td>
                         </tr>
                       ))}

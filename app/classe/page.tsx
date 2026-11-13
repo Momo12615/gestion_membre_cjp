@@ -9,6 +9,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { LogoutButton } from "@/components/logout-button";
 import { InscriptionModal } from "@/components/classe/inscription-modal";
+import { EditMemberModal } from "@/components/members/edit-member-modal";
+import { MemberDeleteButton } from "@/components/members/member-delete-button";
 import { Membre } from "@/lib/types";
 import {
   GraduationCap,
@@ -336,9 +338,15 @@ export default async function ClasseDashboardPage() {
                             <Calendar className="w-3 h-3 text-[#FFA500]" />
                             {m.joined_at ? new Date(m.joined_at).toLocaleDateString("fr-FR") : "N/A"}
                           </span>
-                          <Badge variant="cjp" size="sm" dot className="shrink-0">
-                            {m.status || "Actif"}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="cjp" size="sm" dot className="shrink-0">
+                              {m.status || "Actif"}
+                            </Badge>
+                            <div className="flex items-center gap-1 pl-1.5 border-l border-[#E5E5E5] dark:border-[#383838]">
+                              <EditMemberModal member={m} canChangeClass={false} />
+                              <MemberDeleteButton id={m.id} name={`${m.first_name} ${m.last_name}`} />
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
@@ -356,6 +364,7 @@ export default async function ClasseDashboardPage() {
                         <th className="px-6 py-3.5">Montant Perçu</th>
                         <th className="px-6 py-3.5">Date d&apos;adhésion</th>
                         <th className="px-6 py-3.5">Statut</th>
+                        <th className="px-6 py-3.5 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#E5E5E5] dark:divide-[#383838]">
@@ -413,6 +422,12 @@ export default async function ClasseDashboardPage() {
                               <Badge variant="cjp" size="sm" dot>
                                 {m.status || "Actif"}
                               </Badge>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <EditMemberModal member={m} canChangeClass={false} />
+                                <MemberDeleteButton id={m.id} name={`${m.first_name} ${m.last_name}`} />
+                              </div>
                             </td>
                           </tr>
                         );

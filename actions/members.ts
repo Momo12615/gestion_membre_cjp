@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { getCurrentUserOrThrow, getMemberAccessScope, canAddMember, canDeleteMember } from "@/lib/permissions";
-import { Membre, TypeInscription } from "@/lib/types";
+import { Membre, TypeInscription, SectionFormation } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 
 
@@ -150,8 +150,8 @@ export async function getMemberById(id: number): Promise<{ success: boolean; dat
     const args: any[] = [id];
 
     if (scope.type === "CLASSE") {
-      sql += " AND m.licence = ? AND m.programme = ?";
-      args.push(scope.licence, scope.programme);
+      sql += " AND (m.added_by = ? OR (m.licence = ? AND m.programme = ?))";
+      args.push(scope.user_id, scope.licence, scope.programme);
     } else if (scope.type === "SELF") {
       sql += " AND m.id = ?";
       args.push(scope.member_id);
@@ -299,6 +299,7 @@ export interface UpdateMemberInput {
   role_club?: string;
   status?: "actif" | "inactif" | "suspendu";
   type_inscription?: TypeInscription;
+  section?: SectionFormation | string;
 }
 
 export async function updateMember(id: number, input: UpdateMemberInput): Promise<{ success: boolean; error?: string }> {
@@ -335,7 +336,8 @@ export async function updateMember(id: number, input: UpdateMemberInput): Promis
           promotion = COALESCE(?, promotion),
           role_club = COALESCE(?, role_club),
           status = COALESCE(?, status),
-          type_inscription = COALESCE(?, type_inscription)
+          type_inscription = COALESCE(?, type_inscription),
+          section = COALESCE(?, section)
         WHERE id = ?;
       `,
       args: [
@@ -349,6 +351,7 @@ export async function updateMember(id: number, input: UpdateMemberInput): Promis
         input.role_club?.trim() || null,
         input.status || null,
         input.type_inscription || null,
+        input.section || null,
         id,
       ],
     });
@@ -356,6 +359,7 @@ export async function updateMember(id: number, input: UpdateMemberInput): Promis
     revalidatePath("/membres");
     revalidatePath("/classe");
     revalidatePath("/admin");
+    revalidatePath("/bureau");
 
     return { success: true };
   } catch (err: any) {
@@ -405,6 +409,7 @@ export async function deleteMember(memberId: number): Promise<{ success: boolean
     revalidatePath("/membres");
     revalidatePath("/classe");
     revalidatePath("/admin");
+    revalidatePath("/bureau");
 
     return { success: true };
   } catch (err: any) {
