@@ -12,6 +12,7 @@ import { InscriptionModal } from "@/components/classe/inscription-modal";
 import { EditMemberModal } from "@/components/members/edit-member-modal";
 import { MemberDeleteButton } from "@/components/members/member-delete-button";
 import { Membre } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import {
   GraduationCap,
   Users,
@@ -23,6 +24,10 @@ import {
   Phone,
   Calendar,
   AlertTriangle,
+  CheckCircle2,
+  Receipt,
+  ArrowUpRight,
+  ShieldCheck,
 } from "lucide-react";
 
 export const instant = false;
@@ -85,7 +90,8 @@ export default async function ClasseDashboardPage() {
     } catch (_) {}
   }
 
-  const { inscriptionsOpen, members } = await getClasseDashboardData(session);
+  const { inscriptionsOpen, members, totalVerse = 0, versements = [] } =
+    await getClasseDashboardData(session);
 
   // Calculs financiers officiels CJP (20K Inscription / 10K Réinscription)
   const inscritsCount = members.filter((m) => m.type_inscription === "inscrit").length;
@@ -95,6 +101,7 @@ export default async function ClasseDashboardPage() {
   const totalReinscriptions = reinscritsCount * TARIF_REINSCRIPTION;
 
   const totalCollecte = totalInscriptions + totalReinscriptions;
+  const soldeRestant = Math.max(0, totalCollecte - totalVerse);
 
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-[#171717] text-[#171717] dark:text-white transition-colors duration-200">
@@ -156,7 +163,7 @@ export default async function ClasseDashboardPage() {
 
         {/* CARTES KPI FINANCIÈRES & STATISTIQUES */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-          {/* MONTANT TOTAL ENCAISSÉ */}
+          {/* 1. MONTANT TOTAL COLLECTÉ */}
           <Card className="border-l-4 border-l-[#FFA500] bg-gradient-to-br from-white to-[#FFF4D6]/30 dark:from-[#222222] dark:to-[#FFA500]/5 shadow-sm">
             <CardContent className="p-4 sm:p-5 flex items-center justify-between">
               <div>
@@ -167,75 +174,188 @@ export default async function ClasseDashboardPage() {
                   {totalCollecte.toLocaleString("fr-FR")} GNF
                 </p>
                 <p className="text-[11px] text-[#737373] dark:text-[#A3A3A3] mt-1 font-mono">
-                  {members.length} versement(s) reçu(s)
+                  {members.length} cotisation(s) reçue(s)
                 </p>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-[#FFA500] text-[#171717] flex items-center justify-center shadow-md shadow-[#FFA500]/25">
+              <div className="w-12 h-12 rounded-2xl bg-[#FFA500] text-[#171717] flex items-center justify-center shadow-md shadow-[#FFA500]/25 shrink-0">
                 <Coins className="w-6 h-6" />
               </div>
             </CardContent>
           </Card>
 
-          {/* INSCRIRE (20 000 GNF) */}
-          <Card className="border-l-4 border-l-[#16A34A]">
+          {/* 2. MONTANT DÉJÀ VERSÉ AUX ADMINS */}
+          <Card className="border-l-4 border-l-[#16A34A] bg-gradient-to-br from-white to-emerald-50/30 dark:from-[#222222] dark:to-emerald-950/10 shadow-sm">
             <CardContent className="p-4 sm:p-5 flex items-center justify-between">
               <div>
-                <p className="text-xs text-[#737373] dark:text-[#A3A3A3] font-medium uppercase tracking-wider">
-                  Inscriptions (20 000 GNF)
+                <p className="text-xs text-emerald-800 dark:text-emerald-400 font-medium uppercase tracking-wider">
+                  Montant Déjà Versé
                 </p>
-                <p className="font-heading font-bold text-2xl text-[#171717] dark:text-white mt-1">
-                  {inscritsCount} <span className="text-xs font-normal text-[#737373]">étudiant(s)</span>
+                <p className="font-heading font-bold text-2xl sm:text-3xl text-emerald-600 dark:text-emerald-400 mt-1">
+                  {totalVerse.toLocaleString("fr-FR")} GNF
                 </p>
-                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 font-mono font-medium">
-                  = {totalInscriptions.toLocaleString("fr-FR")} GNF
+                <p className="text-[11px] text-[#737373] dark:text-[#A3A3A3] mt-1 font-mono">
+                  {versements.length} remise(s) validée(s) par l&apos;admin
                 </p>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-500/15 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                <UserPlus className="w-6 h-6" />
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-500/15 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-sm shrink-0">
+                <CheckCircle2 className="w-6 h-6" />
               </div>
             </CardContent>
           </Card>
 
-          {/* RÉINSCRIPTIONS (10 000 GNF) */}
-          <Card className="border-l-4 border-l-[#EAB308]">
+          {/* 3. RESTE À VERSER (SOLDE RESTANT) */}
+          <Card
+            className={cn(
+              "border-l-4 shadow-sm bg-gradient-to-br from-white dark:from-[#222222]",
+              soldeRestant === 0 && totalCollecte > 0
+                ? "border-l-emerald-500 to-emerald-50/20 dark:to-emerald-950/10"
+                : "border-l-[#EAB308] to-amber-50/20 dark:to-amber-950/10"
+            )}
+          >
             <CardContent className="p-4 sm:p-5 flex items-center justify-between">
               <div>
                 <p className="text-xs text-[#737373] dark:text-[#A3A3A3] font-medium uppercase tracking-wider">
-                  Réinscriptions (10 000 GNF)
+                  Reste à Verser
                 </p>
-                <p className="font-heading font-bold text-2xl text-[#171717] dark:text-white mt-1">
-                  {reinscritsCount} <span className="text-xs font-normal text-[#737373]">étudiant(s)</span>
+                <p
+                  className={cn(
+                    "font-heading font-bold text-2xl sm:text-3xl mt-1 font-mono",
+                    soldeRestant === 0 && totalCollecte > 0
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-amber-600 dark:text-amber-400"
+                  )}
+                >
+                  {soldeRestant.toLocaleString("fr-FR")} GNF
                 </p>
-                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 font-mono font-medium">
-                  = {totalReinscriptions.toLocaleString("fr-FR")} GNF
+                <p className="text-[11px] text-[#737373] dark:text-[#A3A3A3] mt-1">
+                  {soldeRestant === 0 && totalCollecte > 0
+                    ? "Comptes à jour avec le club ✅"
+                    : "Solde restant en votre possession"}
                 </p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                <UserCheck className="w-6 h-6" />
+              <div
+                className={cn(
+                  "w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm shrink-0",
+                  soldeRestant === 0 && totalCollecte > 0
+                    ? "bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                    : "bg-amber-50 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                )}
+              >
+                <Receipt className="w-6 h-6" />
               </div>
             </CardContent>
           </Card>
 
-          {/* CLASSE & PROMOTION VERROUILLÉE */}
-          <Card className="border-l-4 border-l-[#2563EB]">
+          {/* 4. CLASSE & PROMOTION VERROUILLÉE */}
+          <Card className="border-l-4 border-l-[#2563EB] shadow-sm">
             <CardContent className="p-4 sm:p-5 flex items-center justify-between">
-              <div>
+              <div className="min-w-0 flex-1 mr-2">
                 <p className="text-xs text-[#737373] dark:text-[#A3A3A3] font-medium uppercase tracking-wider">
                   Classe Verrouillée
                 </p>
-                <p className="font-heading font-bold text-lg sm:text-xl text-[#171717] dark:text-white mt-1">
+                <p className="font-heading font-bold text-base sm:text-lg text-[#171717] dark:text-white mt-1 truncate">
                   {chefLicence} {chefProgramme}
                 </p>
                 <p className="text-[11px] text-[#737373] dark:text-[#A3A3A3] mt-1">
                   Périmètre strict CJP
                 </p>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-500/15 flex items-center justify-center text-blue-600 dark:text-blue-400">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-500/15 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
                 <GraduationCap className="w-6 h-6" />
               </div>
             </CardContent>
           </Card>
         </div>
+
+        {/* BANDEAU DÉTAILS DES ADHÉSIONS (INSCRIPTIONS VS RÉINSCRIPTIONS) */}
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-[#F7F7F7] dark:bg-[#1f1f1f] border border-[#E5E5E5] dark:border-[#383838] flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-[#FFA500]" />
+            <span className="text-[#737373] dark:text-[#A3A3A3]">
+              Répartition des encaissements étudiants :
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 font-mono font-medium">
+            <span className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/50">
+              Inscriptions (20K) : {inscritsCount} = {totalInscriptions.toLocaleString("fr-FR")} GNF
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50">
+              Réinscriptions (10K) : {reinscritsCount} = {totalReinscriptions.toLocaleString("fr-FR")} GNF
+            </span>
+          </div>
+        </div>
+
+        {/* HISTORIQUE DES VERSEMENTS VALIDÉS PAR LES ADMINS (SI EXISTANTS) */}
+        {versements.length > 0 && (
+          <Card>
+            <CardHeader className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E5E5] dark:border-[#383838] pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <CardTitle className="text-sm sm:text-base">
+                    Historique de vos Remises de Fonds aux Administrateurs ({versements.length})
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Reçus officiels validés par l&apos;administration lors de la transmission des cotisations.
+                  </CardDescription>
+                </div>
+              </div>
+              <Badge variant="success" size="md" className="shrink-0 self-start sm:self-auto font-mono">
+                Total Versé : {totalVerse.toLocaleString("fr-FR")} GNF
+              </Badge>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y divide-[#E5E5E5] dark:divide-[#383838]">
+                {versements.map((v) => (
+                  <div
+                    key={v.id}
+                    className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:bg-[#F7F7F7]/60 dark:hover:bg-[#222222]/80 transition-colors text-xs"
+                  >
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-heading font-bold text-sm text-emerald-600 dark:text-emerald-400 font-mono">
+                          +{v.amount.toLocaleString("fr-FR")} GNF
+                        </span>
+                        <Badge variant="outline" size="sm" className="text-[10px]">
+                          Reçu Validé
+                        </Badge>
+                      </div>
+                      <div className="text-[11px] text-[#737373] dark:text-[#A3A3A3] flex flex-wrap items-center gap-2">
+                        <span>
+                          Encaissé par :{" "}
+                          <strong className="text-[#171717] dark:text-white font-medium">
+                            {v.recorded_by_name || "Administration CJP"}
+                          </strong>
+                        </span>
+                        {v.notes && (
+                          <>
+                            <span>•</span>
+                            <span className="italic text-[#FFA500]">
+                              &ldquo;{v.notes}&rdquo;
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] text-[#737373] dark:text-[#A3A3A3] flex items-center gap-1 font-mono">
+                      <Calendar className="w-3 h-3 text-[#FFA500]" />
+                      <span>
+                        {new Date(v.created_at).toLocaleDateString("fr-FR")} à{" "}
+                        {new Date(v.created_at).toLocaleTimeString("fr-FR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* LISTE DES MEMBRES INSCRITS PAR CE CHEF DE CLASSE */}
         <Card>

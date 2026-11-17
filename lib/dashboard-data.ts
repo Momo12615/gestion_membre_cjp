@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { Membre, Organisateur, SessionUser } from "@/lib/types";
+import { Membre, Organisateur, SessionUser, Versement } from "@/lib/types";
 import { unstable_cache } from "next/cache";
 
 // ============================================================================
@@ -38,10 +38,36 @@ export async function getClasseDashboardData(user: SessionUser) {
         };
 
     try {
-      const [settingRes, memberRes] = await db.batch(
+      const versementSql = isChef
+        ? {
+            sql: `
+              SELECT 
+                v.id, v.chef_id, v.amount, v.notes, v.created_at,
+                COALESCE(u.first_name || ' ' || u.last_name, u.email, 'Admin') as recorded_by_name
+              FROM versement v
+              LEFT JOIN user u ON v.recorded_by = u.id
+              WHERE v.chef_id = ?
+              ORDER BY v.created_at DESC;
+            `,
+            args: [user.id],
+          }
+        : {
+            sql: `
+              SELECT 
+                v.id, v.chef_id, v.amount, v.notes, v.created_at,
+                COALESCE(u.first_name || ' ' || u.last_name, u.email, 'Admin') as recorded_by_name
+              FROM versement v
+              LEFT JOIN user u ON v.recorded_by = u.id
+              ORDER BY v.created_at DESC;
+            `,
+            args: [],
+          };
+
+      const [settingRes, memberRes, versementRes] = await db.batch(
         [
           "SELECT value FROM app_setting WHERE key = 'inscriptions_ouvertes' LIMIT 1;",
           memberSql,
+          versementSql,
         ],
         "read"
       );
@@ -67,10 +93,22 @@ export async function getClasseDashboardData(user: SessionUser) {
         joined_at: r.joined_at as string,
       }));
 
-      return { inscriptionsOpen, members };
+      const versements: Versement[] = versementRes.rows.map((r: any) => ({
+        id: Number(r.id),
+        chef_id: Number(r.chef_id),
+        amount: Number(r.amount),
+        recorded_by: Number(r.recorded_by || 0),
+        recorded_by_name: (r.recorded_by_name as string) || "Admin",
+        notes: (r.notes as string) || null,
+        created_at: r.created_at as string,
+      }));
+
+      const totalVerse = versements.reduce((sum, v) => sum + v.amount, 0);
+
+      return { inscriptionsOpen, members, totalVerse, versements };
     } catch (err) {
       console.error("Erreur getClasseDashboardData batch:", err);
-      return { inscriptionsOpen: true, members: [] };
+      return { inscriptionsOpen: true, members: [], totalVerse: 0, versements: [] };
     }
   };
 
@@ -134,7 +172,7 @@ export async function getBureauDashboardData() {
 export async function getAdminDashboardData() {
   const fetcher = async () => {
     try {
-      const [settingRes, memberRes, userRes, orgaRes] = await db.batch(
+      const [settingRes, memberRes, userRes, orgaRes, versementRes] = await db.batch(
         [
           "SELECT value FROM app_setting WHERE key = 'inscriptions_ouvertes' LIMIT 1;",
           `
@@ -172,6 +210,14 @@ export async function getAdminDashboardData() {
           ORDER BY u.created_at DESC;
           `,
           "SELECT * FROM organisateur ORDER BY id ASC;",
+          `
+          SELECT 
+            v.id, v.chef_id, v.amount, v.notes, v.created_at,
+            COALESCE(u.first_name || ' ' || u.last_name, u.email, 'Admin') as recorded_by_name
+          FROM versement v
+          LEFT JOIN user u ON v.recorded_by = u.id
+          ORDER BY v.created_at DESC;
+          `,
         ],
         "read"
       );
@@ -231,15 +277,25 @@ export async function getAdminDashboardData() {
         created_at: r.created_at as string,
       }));
 
-      return { inscriptionsOpen, members, users, organisateurs };
+      const versements: Versement[] = (versementRes?.rows || []).map((r: any) => ({
+        id: Number(r.id),
+        chef_id: Number(r.chef_id),
+        amount: Number(r.amount),
+        recorded_by: Number(r.recorded_by || 0),
+        recorded_by_name: (r.recorded_by_name as string) || "Admin",
+        notes: (r.notes as string) || null,
+        created_at: r.created_at as string,
+      }));
+
+      return { inscriptionsOpen, members, users, organisateurs, versements };
     } catch (err) {
       console.error("Erreur getAdminDashboardData batch:", err);
-      return { inscriptionsOpen: true, members: [], users: [], organisateurs: [] };
+      return { inscriptionsOpen: true, members: [], users: [], organisateurs: [], versements: [] };
     }
   };
 
   return unstable_cache(fetcher, ["admin-dashboard-data"], {
     revalidate: 15,
-    tags: ["membres", "users", "organisateurs", "admin-data"],
+    tags: ["membres", "users", "organisateurs", "versements", "admin-data"],
   })();
 }

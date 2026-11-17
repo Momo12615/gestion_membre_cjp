@@ -68,3 +68,13 @@ export interface SessionUser {
   licence?: string | null;
   programme?: string | null;
 }
+
+export interface Versement {
+  id: number;
+  chef_id: number;
+  amount: number;
+  recorded_by: number;
+  recorded_by_name?: string | null;
+  notes?: string | null;
+  created_at: string;
+}

@@ -15,6 +15,8 @@ import {
   UserCheck,
   UserPlus,
   Coins,
+  CheckCircle2,
+  Receipt,
 } from "lucide-react";
 
 export const instant = false;
@@ -37,12 +39,14 @@ export default async function AdminDashboardPage() {
     redirect("/profil");
   }
 
-  const { inscriptionsOpen, members, users, organisateurs } = await getAdminDashboardData();
+  const { inscriptionsOpen, members, users, organisateurs, versements } = await getAdminDashboardData();
 
   const totalMembers = members.length;
   const inscrits = members.filter((m) => m.type_inscription === "inscrit").length;
   const reinscrits = members.filter((m) => m.type_inscription === "reinscrit").length;
   const totalRecettes = inscrits * TARIF_INSCRIPTION + reinscrits * TARIF_REINSCRIPTION;
+  const totalVerse = (versements || []).reduce((sum, v) => sum + v.amount, 0);
+  const soldeRestant = Math.max(0, totalRecettes - totalVerse);
 
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-[#171717] text-[#171717] dark:text-white transition-colors duration-200">
@@ -75,18 +79,18 @@ export default async function AdminDashboardPage() {
 
         {/* CARTES KPI METRICS (GRILLE 2x2 COMPACTE SUR MOBILE) */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-          {/* TOTAL RECETTES */}
+          {/* 1. TOTAL RECETTES COLLECTÉES */}
           <Card className="border-l-3 sm:border-l-4 border-l-[#FFA500]">
             <CardContent className="p-3 sm:p-5 flex items-center justify-between gap-1.5">
               <div className="min-w-0">
                 <p className="text-[10px] sm:text-xs text-[#737373] dark:text-[#A3A3A3] font-medium truncate">
-                  Total Recettes
+                  Total Collecté
                 </p>
                 <p className="font-heading font-bold text-sm sm:text-xl text-[#FFA500] mt-0.5 font-mono truncate">
                   {totalRecettes.toLocaleString("fr-FR")} GNF
                 </p>
                 <p className="text-[9px] sm:text-[11px] text-[#737373] dark:text-[#A3A3A3] mt-0.5 truncate hidden sm:block">
-                  20K Inscrits • 10K Réinscrits
+                  {totalMembers} adhésion(s) enregistrée(s)
                 </p>
               </div>
               <div className="w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-[#FFF4D6] dark:bg-[#FFA500]/15 flex items-center justify-center text-[#FFA500] shrink-0">
@@ -95,47 +99,47 @@ export default async function AdminDashboardPage() {
             </CardContent>
           </Card>
 
-          {/* NOUVELLES INSCRIPTIONS */}
+          {/* 2. TOTAL DÉJÀ VERSÉ AU CLUB */}
           <Card className="border-l-3 sm:border-l-4 border-l-[#16A34A]">
             <CardContent className="p-3 sm:p-5 flex items-center justify-between gap-1.5">
               <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs text-[#737373] dark:text-[#A3A3A3] font-medium truncate">
-                  Inscrits (20K)
+                <p className="text-[10px] sm:text-xs text-emerald-700 dark:text-emerald-400 font-medium truncate">
+                  Déjà Versé au Club
                 </p>
-                <p className="font-heading font-bold text-base sm:text-xl text-[#171717] dark:text-white mt-0.5 truncate">
-                  {inscrits}
+                <p className="font-heading font-bold text-sm sm:text-xl text-emerald-600 dark:text-emerald-400 mt-0.5 font-mono truncate">
+                  {totalVerse.toLocaleString("fr-FR")} GNF
                 </p>
-                <p className="text-[9px] sm:text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5 font-mono truncate">
-                  {(inscrits * TARIF_INSCRIPTION).toLocaleString("fr-FR")} GNF
+                <p className="text-[9px] sm:text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5 truncate hidden sm:block">
+                  {(versements || []).length} remise(s) validée(s)
                 </p>
               </div>
               <div className="w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-emerald-50 dark:bg-emerald-500/15 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
-                <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
+                <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
             </CardContent>
           </Card>
 
-          {/* RÉINSCRIPTIONS */}
+          {/* 3. RESTE À RÉCUPÉRER AUPRÈS DES CHEFS */}
           <Card className="border-l-3 sm:border-l-4 border-l-[#EAB308]">
             <CardContent className="p-3 sm:p-5 flex items-center justify-between gap-1.5">
               <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs text-[#737373] dark:text-[#A3A3A3] font-medium truncate">
-                  Réinscrits (10K)
+                <p className="text-[10px] sm:text-xs text-amber-700 dark:text-amber-400 font-medium truncate">
+                  Reste à Récupérer
                 </p>
-                <p className="font-heading font-bold text-base sm:text-xl text-[#171717] dark:text-white mt-0.5 truncate">
-                  {reinscrits}
+                <p className="font-heading font-bold text-sm sm:text-xl text-amber-600 dark:text-amber-400 mt-0.5 font-mono truncate">
+                  {soldeRestant.toLocaleString("fr-FR")} GNF
                 </p>
-                <p className="text-[9px] sm:text-[11px] text-amber-600 dark:text-amber-400 mt-0.5 font-mono truncate">
-                  {(reinscrits * TARIF_REINSCRIPTION).toLocaleString("fr-FR")} GNF
+                <p className="text-[9px] sm:text-[11px] text-amber-600 dark:text-amber-400 mt-0.5 truncate hidden sm:block">
+                  {soldeRestant === 0 && totalRecettes > 0 ? "Comptes à jour ✅" : "Chez les chefs de classe"}
                 </p>
               </div>
               <div className="w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-amber-50 dark:bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
-                <UserCheck className="w-4 h-4 sm:w-5 sm:h-5" />
+                <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
             </CardContent>
           </Card>
 
-          {/* TOTAL ADHÉRENTS */}
+          {/* 4. TOTAL ADHÉRENTS */}
           <Card className="border-l-3 sm:border-l-4 border-l-[#2563EB]">
             <CardContent className="p-3 sm:p-5 flex items-center justify-between gap-1.5">
               <div className="min-w-0">
@@ -146,7 +150,7 @@ export default async function AdminDashboardPage() {
                   {totalMembers}
                 </p>
                 <p className="text-[9px] sm:text-[11px] text-[#737373] dark:text-[#A3A3A3] mt-0.5 truncate">
-                  3 sections CJP
+                  {inscrits} I • {reinscrits} R
                 </p>
               </div>
               <div className="w-8 h-8 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-blue-50 dark:bg-blue-500/15 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
@@ -161,6 +165,7 @@ export default async function AdminDashboardPage() {
           users={users}
           organisateurs={organisateurs}
           members={members}
+          versements={versements}
         />
       </main>
 
