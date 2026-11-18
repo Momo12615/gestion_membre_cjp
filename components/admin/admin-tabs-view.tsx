@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   Users,
   UserCheck,
@@ -64,6 +65,11 @@ export function AdminTabsView({
   members,
   versements = [],
 }: AdminTabsViewProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const [activeTab, setActiveTab] = useState<"users" | "organisateurs" | "members" | "versements">("organisateurs");
 
   // Filtres pour les versements
@@ -234,7 +240,7 @@ export function AdminTabsView({
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 pb-20 sm:pb-0">
+    <div className="space-y-4 sm:space-y-6 pb-28 sm:pb-0">
       {/* ========================================================================= */}
       {/* 1. BARRE D'ONGLETS DESKTOP (HAUT DE PAGE)                                 */}
       {/* ========================================================================= */}
@@ -305,110 +311,116 @@ export function AdminTabsView({
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. BOTTOM NAVIGATION BAR MOBILE / ANDROID (FIXÉE EN BAS D'ÉCRAN)           */}
+      {/* 2. BOTTOM NAVIGATION BAR MOBILE / ANDROID (PORTAL DIRECTEMENT DANS BODY)  */}
       {/* ========================================================================= */}
-      <nav
-        aria-label="Navigation principale mobile"
-        className="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-[#141414]/95 backdrop-blur-xl border-t border-[#E5E5E5] dark:border-[#2b2b2b] shadow-2xl px-2 py-1 pb-[max(0.6rem,env(safe-area-inset-bottom))]"
-      >
-        <div className="grid grid-cols-4 gap-1">
-          {/* COMITÉ */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("organisateurs")}
-            className={`relative flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all cursor-pointer ${
-              activeTab === "organisateurs"
-                ? "text-[#FFA500]"
-                : "text-[#737373] dark:text-[#999999] hover:text-[#171717] dark:hover:text-white"
-            }`}
+      {mounted &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <nav
+            aria-label="Navigation principale mobile"
+            className="sm:hidden fixed bottom-0 left-0 right-0 z-50 w-full bg-white dark:bg-[#141414] border-t border-[#E5E5E5] dark:border-[#2b2b2b] shadow-2xl px-2 pt-1.5 pb-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] m-0"
+            style={{ bottom: 0, left: 0, right: 0 }}
           >
-            <div className="relative flex items-center justify-center">
-              <UserCheck className={`w-5 h-5 transition-transform ${activeTab === "organisateurs" ? "scale-110" : ""}`} />
-              <span className="absolute -top-1.5 -right-3 px-1 min-w-[15px] h-3.5 rounded-full text-[9px] font-mono font-bold flex items-center justify-center bg-[#E5E5E5] dark:bg-[#333333] text-[#171717] dark:text-white">
-                {organisateurs.length}
-              </span>
-            </div>
-            <span className={`text-[10px] mt-1 font-heading tracking-tight truncate max-w-full ${activeTab === "organisateurs" ? "font-bold text-[#FFA500]" : "font-medium"}`}>
-              Comité
-            </span>
-            {activeTab === "organisateurs" && (
-              <span className="absolute bottom-0 w-6 h-0.5 rounded-full bg-[#FFA500]" />
-            )}
-          </button>
+            <div className="grid grid-cols-4 gap-1 max-w-md mx-auto">
+              {/* COMITÉ */}
+              <button
+                type="button"
+                onClick={() => setActiveTab("organisateurs")}
+                className={`relative flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all cursor-pointer ${
+                  activeTab === "organisateurs"
+                    ? "text-[#FFA500]"
+                    : "text-[#737373] dark:text-[#999999] hover:text-[#171717] dark:hover:text-white"
+                }`}
+              >
+                <div className="relative flex items-center justify-center">
+                  <UserCheck className={`w-5 h-5 transition-transform ${activeTab === "organisateurs" ? "scale-110" : ""}`} />
+                  <span className="absolute -top-1.5 -right-3 px-1 min-w-[15px] h-3.5 rounded-full text-[9px] font-mono font-bold flex items-center justify-center bg-[#E5E5E5] dark:bg-[#333333] text-[#171717] dark:text-white">
+                    {organisateurs.length}
+                  </span>
+                </div>
+                <span className={`text-[10px] mt-1 font-heading tracking-tight truncate max-w-full ${activeTab === "organisateurs" ? "font-bold text-[#FFA500]" : "font-medium"}`}>
+                  Comité
+                </span>
+                {activeTab === "organisateurs" && (
+                  <span className="absolute bottom-0 w-6 h-0.5 rounded-full bg-[#FFA500]" />
+                )}
+              </button>
 
-          {/* COMPTES */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("users")}
-            className={`relative flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all cursor-pointer ${
-              activeTab === "users"
-                ? "text-[#FFA500]"
-                : "text-[#737373] dark:text-[#999999] hover:text-[#171717] dark:hover:text-white"
-            }`}
-          >
-            <div className="relative flex items-center justify-center">
-              <Users className={`w-5 h-5 transition-transform ${activeTab === "users" ? "scale-110" : ""}`} />
-              <span className="absolute -top-1.5 -right-3 px-1 min-w-[15px] h-3.5 rounded-full text-[9px] font-mono font-bold flex items-center justify-center bg-[#E5E5E5] dark:bg-[#333333] text-[#171717] dark:text-white">
-                {users.length}
-              </span>
-            </div>
-            <span className={`text-[10px] mt-1 font-heading tracking-tight truncate max-w-full ${activeTab === "users" ? "font-bold text-[#FFA500]" : "font-medium"}`}>
-              Comptes
-            </span>
-            {activeTab === "users" && (
-              <span className="absolute bottom-0 w-6 h-0.5 rounded-full bg-[#FFA500]" />
-            )}
-          </button>
+              {/* COMPTES */}
+              <button
+                type="button"
+                onClick={() => setActiveTab("users")}
+                className={`relative flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all cursor-pointer ${
+                  activeTab === "users"
+                    ? "text-[#FFA500]"
+                    : "text-[#737373] dark:text-[#999999] hover:text-[#171717] dark:hover:text-white"
+                }`}
+              >
+                <div className="relative flex items-center justify-center">
+                  <Users className={`w-5 h-5 transition-transform ${activeTab === "users" ? "scale-110" : ""}`} />
+                  <span className="absolute -top-1.5 -right-3 px-1 min-w-[15px] h-3.5 rounded-full text-[9px] font-mono font-bold flex items-center justify-center bg-[#E5E5E5] dark:bg-[#333333] text-[#171717] dark:text-white">
+                    {users.length}
+                  </span>
+                </div>
+                <span className={`text-[10px] mt-1 font-heading tracking-tight truncate max-w-full ${activeTab === "users" ? "font-bold text-[#FFA500]" : "font-medium"}`}>
+                  Comptes
+                </span>
+                {activeTab === "users" && (
+                  <span className="absolute bottom-0 w-6 h-0.5 rounded-full bg-[#FFA500]" />
+                )}
+              </button>
 
-          {/* MEMBRES */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("members")}
-            className={`relative flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all cursor-pointer ${
-              activeTab === "members"
-                ? "text-[#FFA500]"
-                : "text-[#737373] dark:text-[#999999] hover:text-[#171717] dark:hover:text-white"
-            }`}
-          >
-            <div className="relative flex items-center justify-center">
-              <GraduationCap className={`w-5 h-5 transition-transform ${activeTab === "members" ? "scale-110" : ""}`} />
-              <span className="absolute -top-1.5 -right-3 px-1 min-w-[15px] h-3.5 rounded-full text-[9px] font-mono font-bold flex items-center justify-center bg-[#E5E5E5] dark:bg-[#333333] text-[#171717] dark:text-white">
-                {members.length}
-              </span>
-            </div>
-            <span className={`text-[10px] mt-1 font-heading tracking-tight truncate max-w-full ${activeTab === "members" ? "font-bold text-[#FFA500]" : "font-medium"}`}>
-              Membres
-            </span>
-            {activeTab === "members" && (
-              <span className="absolute bottom-0 w-6 h-0.5 rounded-full bg-[#FFA500]" />
-            )}
-          </button>
+              {/* MEMBRES */}
+              <button
+                type="button"
+                onClick={() => setActiveTab("members")}
+                className={`relative flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all cursor-pointer ${
+                  activeTab === "members"
+                    ? "text-[#FFA500]"
+                    : "text-[#737373] dark:text-[#999999] hover:text-[#171717] dark:hover:text-white"
+                }`}
+              >
+                <div className="relative flex items-center justify-center">
+                  <GraduationCap className={`w-5 h-5 transition-transform ${activeTab === "members" ? "scale-110" : ""}`} />
+                  <span className="absolute -top-1.5 -right-3 px-1 min-w-[15px] h-3.5 rounded-full text-[9px] font-mono font-bold flex items-center justify-center bg-[#E5E5E5] dark:bg-[#333333] text-[#171717] dark:text-white">
+                    {members.length}
+                  </span>
+                </div>
+                <span className={`text-[10px] mt-1 font-heading tracking-tight truncate max-w-full ${activeTab === "members" ? "font-bold text-[#FFA500]" : "font-medium"}`}>
+                  Membres
+                </span>
+                {activeTab === "members" && (
+                  <span className="absolute bottom-0 w-6 h-0.5 rounded-full bg-[#FFA500]" />
+                )}
+              </button>
 
-          {/* VERSEMENTS */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("versements")}
-            className={`relative flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all cursor-pointer ${
-              activeTab === "versements"
-                ? "text-[#FFA500]"
-                : "text-[#737373] dark:text-[#999999] hover:text-[#171717] dark:hover:text-white"
-            }`}
-          >
-            <div className="relative flex items-center justify-center">
-              <Coins className={`w-5 h-5 transition-transform ${activeTab === "versements" ? "scale-110 text-[#FFA500]" : "text-[#737373] dark:text-[#999999]"}`} />
-              <span className="absolute -top-1.5 -right-3 px-1 min-w-[15px] h-3.5 rounded-full text-[9px] font-mono font-bold flex items-center justify-center bg-[#FFA500]/25 text-[#FFA500]">
-                {versements.length}
-              </span>
+              {/* VERSEMENTS */}
+              <button
+                type="button"
+                onClick={() => setActiveTab("versements")}
+                className={`relative flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all cursor-pointer ${
+                  activeTab === "versements"
+                    ? "text-[#FFA500]"
+                    : "text-[#737373] dark:text-[#999999] hover:text-[#171717] dark:hover:text-white"
+                }`}
+              >
+                <div className="relative flex items-center justify-center">
+                  <Coins className={`w-5 h-5 transition-transform ${activeTab === "versements" ? "scale-110 text-[#FFA500]" : "text-[#737373] dark:text-[#999999]"}`} />
+                  <span className="absolute -top-1.5 -right-3 px-1 min-w-[15px] h-3.5 rounded-full text-[9px] font-mono font-bold flex items-center justify-center bg-[#FFA500]/25 text-[#FFA500]">
+                    {versements.length}
+                  </span>
+                </div>
+                <span className={`text-[10px] mt-1 font-heading tracking-tight truncate max-w-full ${activeTab === "versements" ? "font-bold text-[#FFA500]" : "font-medium"}`}>
+                  Versements
+                </span>
+                {activeTab === "versements" && (
+                  <span className="absolute bottom-0 w-6 h-0.5 rounded-full bg-[#FFA500]" />
+                )}
+              </button>
             </div>
-            <span className={`text-[10px] mt-1 font-heading tracking-tight truncate max-w-full ${activeTab === "versements" ? "font-bold text-[#FFA500]" : "font-medium"}`}>
-              Versements
-            </span>
-            {activeTab === "versements" && (
-              <span className="absolute bottom-0 w-6 h-0.5 rounded-full bg-[#FFA500]" />
-            )}
-          </button>
-        </div>
-      </nav>
+          </nav>,
+          document.body
+        )}
 
       {/* ========================================================================= */}
       {/* ONGLET 1 : GESTION DES ORGANISATEURS (COMITÉ CJP)                        */}
