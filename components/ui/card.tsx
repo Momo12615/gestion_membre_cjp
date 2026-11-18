@@ -1,6 +1,9 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 
+const hasCustomPadding = (className?: string) =>
+  Boolean(className && /(?:^|\s)!?p[xytrbl]?-(?:[\d\.]+|\[.+?\])/.test(className));
+
 export function Card({
   className,
   children,
@@ -26,7 +29,11 @@ export function CardHeader({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("p-6 pb-3 flex flex-col space-y-1.5", className)}
+      className={cn(
+        !hasCustomPadding(className) && "p-6 pb-3",
+        "flex flex-col space-y-1.5",
+        className
+      )}
       {...props}
     >
       {children}
@@ -73,7 +80,10 @@ export function CardContent({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("p-6 pt-3", className)} {...props}>
+    <div
+      className={cn(!hasCustomPadding(className) && "p-6 pt-3", className)}
+      {...props}
+    >
       {children}
     </div>
   );
@@ -87,7 +97,8 @@ export function CardFooter({
   return (
     <div
       className={cn(
-        "p-6 pt-0 flex items-center border-t border-[#E5E5E5]/60 dark:border-[#383838]/60 mt-4",
+        !hasCustomPadding(className) && "p-6 pt-0",
+        "flex items-center border-t border-[#E5E5E5]/60 dark:border-[#383838]/60 mt-4",
         className
       )}
       {...props}

@@ -12,6 +12,7 @@ import {
   Coins,
   Receipt,
   CheckCircle2,
+  AlertCircle,
   Calendar,
   ShieldCheck,
   RotateCcw,
@@ -35,6 +36,7 @@ import { UserDeleteButton } from "@/components/admin/user-delete-button";
 import { OrganisateurDeleteButton } from "@/components/admin/organisateur-delete-button";
 import { InviteOrganisateurButton } from "@/components/admin/invite-organisateur-button";
 import { RecordVersementModal } from "@/components/admin/record-versement-modal";
+import { ReinscrireOrganisateurModal } from "@/components/admin/reinscrire-organisateur-modal";
 
 interface AdminUserItem {
   id: number;
@@ -91,6 +93,43 @@ export function AdminTabsView({
 
   // Filtres pour les organisateurs
   const [orgaSearch, setOrgaSearch] = useState("");
+  const [orgaReinsFilter, setOrgaReinsFilter] = useState<"ALL" | "REINSCRIT" | "NON_REINSCRIT">("ALL");
+
+  // Correspondance entre un membre du comité et sa fiche d'adhésion membre CJP
+  const orgaMembershipMap = useMemo(() => {
+    const map = new Map<number, Membre>();
+    organisateurs.forEach((orga) => {
+      const orgaEmail = orga.email?.trim().toLowerCase();
+      const orgaFullName = `${orga.first_name} ${orga.last_name}`.trim().toLowerCase();
+      const orgaPhoneDigits = orga.phone ? orga.phone.replace(/\D/g, "") : null;
+
+      const matched = members.find((m) => {
+        const mEmail = m.email?.trim().toLowerCase();
+        if (orgaEmail && mEmail && orgaEmail === mEmail) return true;
+
+        const mFullName = `${m.first_name} ${m.last_name}`.trim().toLowerCase();
+        if (orgaFullName && mFullName && orgaFullName === mFullName) return true;
+
+        if (orgaPhoneDigits && orgaPhoneDigits.length >= 8 && m.phone) {
+          const mPhoneDigits = m.phone.replace(/\D/g, "");
+          if (mPhoneDigits.endsWith(orgaPhoneDigits.slice(-8))) return true;
+        }
+
+        return false;
+      });
+
+      if (matched) {
+        map.set(orga.id, matched);
+      }
+    });
+    return map;
+  }, [organisateurs, members]);
+
+  const orgaReinscritsCount = useMemo(() => {
+    return organisateurs.filter((o) => orgaMembershipMap.has(o.id)).length;
+  }, [organisateurs, orgaMembershipMap]);
+
+  const orgaNonReinscritsCount = organisateurs.length - orgaReinscritsCount;
 
   // Filtrage des utilisateurs
   const filteredUsers = useMemo(() => {
@@ -114,16 +153,23 @@ export function AdminTabsView({
   const filteredOrganisateurs = useMemo(() => {
     return organisateurs.filter((o) => {
       const q = orgaSearch.toLowerCase().trim();
-      return (
+      const matchSearch =
         !q ||
         o.first_name.toLowerCase().includes(q) ||
         o.last_name.toLowerCase().includes(q) ||
         (o.email && o.email.toLowerCase().includes(q)) ||
         o.role.toLowerCase().includes(q) ||
-        (o.phone && o.phone.toLowerCase().includes(q))
-      );
+        (o.phone && o.phone.toLowerCase().includes(q));
+
+      const isReinscrit = orgaMembershipMap.has(o.id);
+      const matchReins =
+        orgaReinsFilter === "ALL" ||
+        (orgaReinsFilter === "REINSCRIT" && isReinscrit) ||
+        (orgaReinsFilter === "NON_REINSCRIT" && !isReinscrit);
+
+      return matchSearch && matchReins;
     });
-  }, [organisateurs, orgaSearch]);
+  }, [organisateurs, orgaSearch, orgaReinsFilter, orgaMembershipMap]);
 
   // Filtres et tri pour les membres
   const [memberSearch, setMemberSearch] = useState("");
@@ -446,8 +492,46 @@ export function AdminTabsView({
             </div>
           </CardHeader>
 
-          {/* BARRE DE RECHERCHE ORGANISATEUR */}
-          <div className="p-2.5 sm:p-3.5 bg-[#F7F7F7]/50 dark:bg-[#1a1a1a]/50 border-b border-[#E5E5E5] dark:border-[#383838]">
+          {/* BANDEAU SUIVI RÉINSCRIPTION COMITÉ */}
+          <div className="p-3 sm:p-4 bg-[#FFF4D6]/50 dark:bg-[#FFA500]/10 border-b border-[#FFA500]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-[#FFA500]/20 text-[#FFA500] flex items-center justify-center font-bold text-xs shrink-0 border border-[#FFA500]/30 font-mono">
+                {orgaReinscritsCount}/{organisateurs.length}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-heading font-semibold text-xs sm:text-sm text-[#171717] dark:text-white">
+                    Cotisations Réinscription Comité
+                  </span>
+                  <Badge variant="cjp" size="sm" className="text-[10px]">
+                    10 000 GNF / pers.
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-[#737373] dark:text-[#A3A3A3] mt-0.5">
+                  {orgaNonReinscritsCount === 0
+                    ? "Tous les membres du comité sont réinscrits au CJP ✅ (100% à jour)"
+                    : `${orgaNonReinscritsCount} responsable(s) doivent encore valider leur réinscription obligatoire.`}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+              <div className="text-left sm:text-right">
+                <span className="text-[10px] text-[#737373] dark:text-[#A3A3A3] block">Total perçu comité</span>
+                <span className="font-mono font-bold text-xs sm:text-sm text-[#FFA500]">
+                  {(orgaReinscritsCount * TARIF_REINSCRIPTION).toLocaleString("fr-FR")} GNF
+                </span>
+              </div>
+              {orgaNonReinscritsCount === 0 ? (
+                <Badge variant="success" size="sm" dot>100% à jour</Badge>
+              ) : (
+                <Badge variant="warning" size="sm" dot>{orgaNonReinscritsCount} en attente</Badge>
+              )}
+            </div>
+          </div>
+
+          {/* BARRE DE RECHERCHE ORGANISATEUR & FILTRE DE RÉINSCRIPTION */}
+          <div className="p-2.5 sm:p-3.5 bg-[#F7F7F7]/50 dark:bg-[#1a1a1a]/50 border-b border-[#E5E5E5] dark:border-[#383838] flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between">
             <div className="relative w-full sm:max-w-xs">
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#737373]" />
               <Input
@@ -456,6 +540,42 @@ export function AdminTabsView({
                 onChange={(e) => setOrgaSearch(e.target.value)}
                 className="pl-8 text-xs py-1.5"
               />
+            </div>
+
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+              <button
+                type="button"
+                onClick={() => setOrgaReinsFilter("ALL")}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0 ${
+                  orgaReinsFilter === "ALL"
+                    ? "bg-[#FFA500] text-[#171717] font-semibold shadow-xs"
+                    : "bg-white dark:bg-[#262626] text-[#737373] dark:text-[#A3A3A3] hover:text-[#171717] border border-[#E5E5E5] dark:border-[#383838]"
+                }`}
+              >
+                Tous ({organisateurs.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrgaReinsFilter("NON_REINSCRIT")}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0 ${
+                  orgaReinsFilter === "NON_REINSCRIT"
+                    ? "bg-amber-500 text-white font-semibold shadow-xs"
+                    : "bg-white dark:bg-[#262626] text-[#737373] dark:text-[#A3A3A3] hover:text-[#171717] border border-[#E5E5E5] dark:border-[#383838]"
+                }`}
+              >
+                À réinscrire ({orgaNonReinscritsCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setOrgaReinsFilter("REINSCRIT")}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer shrink-0 ${
+                  orgaReinsFilter === "REINSCRIT"
+                    ? "bg-emerald-600 text-white font-semibold shadow-xs"
+                    : "bg-white dark:bg-[#262626] text-[#737373] dark:text-[#A3A3A3] hover:text-[#171717] border border-[#E5E5E5] dark:border-[#383838]"
+                }`}
+              >
+                Réinscrits ({orgaReinscritsCount})
+              </button>
             </div>
           </div>
 
@@ -508,6 +628,31 @@ export function AdminTabsView({
                         )}
                       </div>
                     </div>
+
+                    {/* STATUT RÉINSCRIPTION ADHÉSION CJP */}
+                    {(() => {
+                      const membership = orgaMembershipMap.get(orga.id);
+                      if (membership) {
+                        return (
+                          <div className="mt-2.5 pt-2 border-t border-[#E5E5E5]/60 dark:border-[#333333] flex items-center justify-between text-[11px]">
+                            <span className="text-[#737373] dark:text-[#A3A3A3] text-[10px]">Adhésion CJP :</span>
+                            <Badge variant="success" size="sm" className="text-[10px] gap-1 font-medium">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+                              <span>{membership.type_inscription === "reinscrit" ? "Réinscrit (10 000 GNF)" : "Inscrit (20 000 GNF)"}</span>
+                            </Badge>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="mt-2.5 pt-2 border-t border-[#E5E5E5]/60 dark:border-[#333333] flex items-center justify-between gap-2 text-[11px]">
+                          <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium text-[10px] shrink-0">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span>Non réinscrit</span>
+                          </div>
+                          <ReinscrireOrganisateurModal organisateur={orga} />
+                        </div>
+                      );
+                    })()}
 
                     {/* PIED DE CARTE ORGANISATEUR */}
                     <div className="mt-3 pt-2.5 border-t border-[#E5E5E5] dark:border-[#333333] flex items-center justify-between text-xs">
@@ -604,11 +749,11 @@ export function AdminTabsView({
             ) : (
               <>
                 {/* VUE MOBILE : Cartes Utilisateurs */}
-                <div className="block sm:hidden p-2.5 space-y-2">
+                <div className="block sm:hidden p-2 space-y-2">
                   {filteredUsers.map((u) => (
                     <div
                       key={u.id}
-                      className="p-3 rounded-xl border border-[#E5E5E5] dark:border-[#383838] bg-[#F7F7F7]/80 dark:bg-[#1c1c1c] space-y-2 shadow-xs"
+                      className="p-3 rounded-xl border border-[#E5E5E5] dark:border-[#383838] bg-[#F7F7F7]/80 dark:bg-[#1c1c1c] space-y-2 shadow-xs overflow-hidden"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
@@ -632,7 +777,7 @@ export function AdminTabsView({
                       </div>
 
                       <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[#E5E5E5]/60 dark:border-[#333333]">
-                        <span className="text-[#737373] dark:text-[#A3A3A3]">Rôle :</span>
+                        <span className="text-[#737373] dark:text-[#A3A3A3] shrink-0">Rôle :</span>
                         <Badge
                           variant={
                             u.permission_code === "ADMIN"
@@ -642,6 +787,7 @@ export function AdminTabsView({
                               : "outline"
                           }
                           size="sm"
+                          className="truncate max-w-[70%]"
                         >
                           {u.permission_name || u.permission_code}
                         </Badge>
@@ -664,9 +810,16 @@ export function AdminTabsView({
 
                         return (
                           <div className="pt-2 border-t border-[#E5E5E5]/60 dark:border-[#333333] space-y-1.5">
-                            <div className="flex items-center justify-between text-[11px]">
-                              <span className="text-[#737373] dark:text-[#A3A3A3]">Périmètre :</span>
-                              <span className="font-mono font-semibold text-[#FFA500] px-1.5 py-0.5 rounded bg-[#FFF4D6] dark:bg-[#FFA500]/15 border border-[#FFA500]/30 shrink-0">
+                            <div className="flex items-start justify-between gap-2 text-[11px]">
+                              <span className="text-[#737373] dark:text-[#A3A3A3] shrink-0 whitespace-nowrap pt-0.5">Périmètre :</span>
+                              <span
+                                className="font-mono font-semibold text-[#FFA500] px-2 py-0.5 rounded-lg bg-[#FFF4D6] dark:bg-[#FFA500]/15 border border-[#FFA500]/30 text-right break-words max-w-[70%] text-[10.5px] leading-snug"
+                                title={
+                                  u.permission_code === "CHEF_DE_CLASSE"
+                                    ? (u.classe || `${u.licence || "L2"} ${u.programme || "GL"}`)
+                                    : "Accès Global"
+                                }
+                              >
                                 {u.permission_code === "CHEF_DE_CLASSE"
                                   ? (u.classe || `${u.licence || "L2"} ${u.programme || "GL"}`)
                                   : "Accès Global"}
@@ -690,7 +843,7 @@ export function AdminTabsView({
                         );
                       })()}
 
-                      <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#333333] flex items-center justify-end gap-1.5">
+                      <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#333333] flex items-center justify-end gap-1.5 flex-wrap">
                         {["CHEF_DE_CLASSE", "BUREAU", "ADMIN"].includes(u.permission_code) && (() => {
                           const userMembers = members.filter((m) => m.added_by === u.id);
                           const userVersements = versements.filter((v) => v.chef_id === u.id);
@@ -818,7 +971,10 @@ export function AdminTabsView({
 
                               return (
                                 <div className="space-y-1">
-                                  <span className="font-mono font-semibold text-[#FFA500] px-2 py-0.5 rounded-lg bg-[#FFF4D6] dark:bg-[#FFA500]/15 border border-[#FFA500]/30 inline-block">
+                                  <span
+                                    className="font-mono font-semibold text-[#FFA500] px-2 py-0.5 rounded-lg bg-[#FFF4D6] dark:bg-[#FFA500]/15 border border-[#FFA500]/30 inline-block break-words max-w-xs leading-snug"
+                                    title={isChef ? (u.classe || `${u.licence || "L2"} ${u.programme || "GL"}`) : "Accès Global"}
+                                  >
                                     {isChef ? (u.classe || `${u.licence || "L2"} ${u.programme || "GL"}`) : "Accès Global"}
                                   </span>
                                   <div className="text-[10px] text-[#737373] dark:text-[#A3A3A3] flex items-center gap-1.5 font-mono">
@@ -1059,11 +1215,11 @@ export function AdminTabsView({
             ) : (
               <>
                 {/* VUE MOBILE : Cartes Membres */}
-                <div className="block md:hidden p-2.5 space-y-2">
+                <div className="block md:hidden p-2 space-y-2">
                   {filteredMembers.map((m) => (
                     <div
                       key={m.id}
-                      className="p-3 rounded-xl border border-[#E5E5E5] dark:border-[#383838] bg-[#F7F7F7]/80 dark:bg-[#1c1c1c] space-y-2 shadow-xs"
+                      className="p-3 rounded-xl border border-[#E5E5E5] dark:border-[#383838] bg-[#F7F7F7]/80 dark:bg-[#1c1c1c] space-y-2 shadow-xs overflow-hidden"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
@@ -1072,7 +1228,7 @@ export function AdminTabsView({
                           </h4>
                           <div className="flex items-center gap-1 text-[11px] text-[#737373] dark:text-[#A3A3A3] mt-0.5">
                             <GraduationCap className="w-3 h-3 text-[#FFA500] shrink-0" />
-                            <span>
+                            <span className="break-words line-clamp-2">
                               {m.licence || "N/A"} - {m.programme || "N/A"}
                             </span>
                           </div>
@@ -1419,7 +1575,7 @@ export function AdminTabsView({
                 ) : (
                   <>
                     {/* VUE MOBILE */}
-                    <div className="block md:hidden p-2.5 space-y-2">
+                    <div className="block md:hidden p-2 space-y-2">
                       {filteredCollectors.map((c) => {
                         const userMembers = members.filter((m) => m.added_by === c.id);
                         const userCollecte = userMembers.reduce(
@@ -1439,10 +1595,10 @@ export function AdminTabsView({
                         return (
                           <div
                             key={c.id}
-                            className="p-3.5 rounded-xl border border-[#E5E5E5] dark:border-[#383838] bg-white dark:bg-[#1f1f1f] space-y-2.5 shadow-xs"
+                            className="p-3.5 rounded-xl border border-[#E5E5E5] dark:border-[#383838] bg-white dark:bg-[#1f1f1f] space-y-2.5 shadow-xs overflow-hidden"
                           >
                             <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
+                              <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <h4 className="font-heading font-semibold text-xs sm:text-sm text-[#171717] dark:text-white truncate">
                                     {collectorName}
@@ -1465,7 +1621,14 @@ export function AdminTabsView({
                                       : "Admin"}
                                   </Badge>
                                 </div>
-                                <span className="font-mono text-[11px] text-[#FFA500] truncate block mt-0.5">
+                                <span
+                                  className="font-mono text-[11px] text-[#FFA500] break-words line-clamp-2 block mt-0.5"
+                                  title={
+                                    isChef
+                                      ? (c.classe || `${c.licence || "L2"} ${c.programme || ""}`)
+                                      : "Accès Global (Tous niveaux)"
+                                  }
+                                >
                                   {isChef
                                     ? (c.classe || `${c.licence || "L2"} ${c.programme || ""}`)
                                     : "Accès Global (Tous niveaux)"}

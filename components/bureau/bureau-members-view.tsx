@@ -330,7 +330,7 @@ export function BureauMembersView({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                      <span className="px-2 py-0.5 rounded-lg bg-[#F7F7F7] dark:bg-white/[0.05] border border-[#E5E5E5] dark:border-white/10 font-mono text-[11px] font-semibold text-[#171717] dark:text-white">
+                      <span className="px-2 py-0.5 rounded-lg bg-[#F7F7F7] dark:bg-white/[0.05] border border-[#E5E5E5] dark:border-white/10 font-mono text-[11px] font-semibold text-[#171717] dark:text-white break-words max-w-full">
                         {m.licence} - {m.programme}
                       </span>
                       {m.section && (
