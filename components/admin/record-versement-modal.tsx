@@ -26,6 +26,7 @@ interface RecordVersementModalProps {
   chefId: number;
   chefName: string;
   chefEmail: string;
+  roleLabel?: string;
   classeName?: string;
   totalCollecte: number;
   totalVerse: number;
@@ -37,6 +38,7 @@ export function RecordVersementModal({
   chefId,
   chefName,
   chefEmail,
+  roleLabel,
   classeName,
   totalCollecte,
   totalVerse,
@@ -133,7 +135,7 @@ export function RecordVersementModal({
       confirm(
         `Êtes-vous sûr de vouloir supprimer le versement de ${versementAmount.toLocaleString(
           "fr-FR"
-        )} GNF ?\n\nCette action recalcule automatiquement le solde restant du chef de classe.`
+        )} GNF ?\n\nCette action recalcule automatiquement le solde restant du responsable.`
       )
     ) {
       setDeletingId(versementId);
@@ -160,7 +162,7 @@ export function RecordVersementModal({
           "text-[#FFA500] hover:text-[#FFA500] hover:bg-[#FFF4D6] dark:hover:bg-[#FFA500]/15 border-[#FFA500]/40 cursor-pointer h-8 px-2.5 gap-1.5 shrink-0 text-xs font-semibold",
           className
         )}
-        title="Gérer les versements de ce chef de classe"
+        title="Gérer les versements de ce responsable"
       >
         <Coins className="w-3.5 h-3.5" />
         <span className="hidden xs:inline">Versements</span>
@@ -192,7 +194,7 @@ export function RecordVersementModal({
                     Versements & Remises de Fonds
                   </h3>
                   <p className="text-xs text-[#737373] dark:text-[#A3A3A3] truncate">
-                    {chefName} {classeName ? `• ${classeName}` : ""}
+                    {chefName} {roleLabel ? `• ${roleLabel}` : ""} {classeName ? `• ${classeName}` : ""}
                   </p>
                 </div>
               </div>
@@ -227,7 +229,7 @@ export function RecordVersementModal({
               {/* CARTE RÉCAPITULATIF FINANCIER */}
               <div className="p-3.5 rounded-2xl bg-gradient-to-br from-[#F7F7F7] to-[#FFF4D6]/30 dark:from-[#222222] dark:to-[#FFA500]/5 border border-[#FFA500]/25 space-y-2.5">
                 <div className="flex items-center justify-between text-xs font-semibold text-[#171717] dark:text-white">
-                  <span>Situation Financière de la Classe</span>
+                  <span>Situation Financière & Encaissements</span>
                   {resteAVerser === 0 && totalCollecte > 0 ? (
                     <Badge variant="success" size="sm" className="text-[10px]">
                       Entièrement Réglé ✅
@@ -297,7 +299,7 @@ export function RecordVersementModal({
                     type="number"
                     placeholder="Ex: 50000"
                     min="1"
-                    step="1000"
+                    step="any"
                     required
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}

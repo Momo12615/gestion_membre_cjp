@@ -1,15 +1,27 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getBureauDashboardData } from "@/lib/dashboard-data";
+import { TARIF_INSCRIPTION, TARIF_REINSCRIPTION } from "@/lib/constants";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { LogoutButton } from "@/components/logout-button";
 import { CreateMemberModal } from "@/components/admin/create-member-modal";
-import { EditMemberModal } from "@/components/members/edit-member-modal";
-import { MemberDeleteButton } from "@/components/members/member-delete-button";
 import { EditProfileModal } from "@/components/profile/edit-profile-modal";
-import { Users, UserPlus, UserCheck, Sparkles, ShieldCheck } from "lucide-react";
+import { BureauMembersView } from "@/components/bureau/bureau-members-view";
+import {
+  Users,
+  UserPlus,
+  UserCheck,
+  Coins,
+  CheckCircle2,
+  Receipt,
+  Calendar,
+  ShieldCheck,
+  Lock,
+  AlertTriangle,
+} from "lucide-react";
 
 export const instant = false;
 
@@ -29,7 +41,8 @@ export default async function BureauDashboardPage() {
     redirect("/profil");
   }
 
-  const { members } = await getBureauDashboardData();
+  const { inscriptionsOpen, members, totalVerse = 0, versements = [] } =
+    await getBureauDashboardData(session);
 
   const userDisplayName =
     session.first_name || session.last_name
@@ -40,8 +53,16 @@ export default async function BureauDashboardPage() {
     (session.first_name?.[0] || "") + (session.last_name?.[0] || "") ||
     session.email[0].toUpperCase();
 
+  // Statistiques globales de l'association
   const totalInscrits = members.filter((m) => m.type_inscription === "inscrit").length;
   const totalReinscrits = members.filter((m) => m.type_inscription === "reinscrit").length;
+
+  // Calculs financiers personnels du membre du Bureau (basés sur les inscriptions qu'il a lui-même effectuées)
+  const myMembers = members.filter((m) => m.added_by === session.id);
+  const myInscrits = myMembers.filter((m) => m.type_inscription === "inscrit").length;
+  const myReinscrits = myMembers.filter((m) => m.type_inscription === "reinscrit").length;
+  const myCollecte = myInscrits * TARIF_INSCRIPTION + myReinscrits * TARIF_REINSCRIPTION;
+  const myReste = Math.max(0, myCollecte - totalVerse);
 
   return (
     <div className="relative min-h-screen flex flex-col bg-[#F7F7F7] dark:bg-[#121212] text-[#171717] dark:text-white transition-colors duration-200 overflow-x-hidden">
@@ -67,17 +88,22 @@ export default async function BureauDashboardPage() {
                 <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white dark:border-[#1A1A1A] rounded-full" />
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h1 className="font-heading font-bold text-lg sm:text-2xl text-[#171717] dark:text-white truncate">
                     {userDisplayName}
                   </h1>
-                  <Badge variant="warning" size="sm" className="hidden xs:inline-flex shrink-0">
-                    Bureau
+                  <Badge variant="warning" size="sm" className="shrink-0">
+                    Bureau Exécutif
                   </Badge>
+                  {!inscriptionsOpen && (
+                    <Badge variant="error" size="sm">
+                      Campagne Clôturée
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-[#737373] dark:text-[#A3A3A3] mt-0.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-[#FFA500] shrink-0" />
-                  <span className="truncate">Bureau Exécutif • Club des Jeunes Programmeurs</span>
+                  <span className="truncate">Accès Global • Inscriptions tous niveaux & programmes</span>
                 </div>
               </div>
             </div>
@@ -93,256 +119,200 @@ export default async function BureauDashboardPage() {
             </div>
           </div>
 
-          {/* Bouton d'action principal bien mis en valeur */}
+          {/* Bouton d'action principal : Inscrire un membre */}
           <div className="mt-4 pt-3.5 border-t border-[#E5E5E5]/70 dark:border-white/[0.06]">
-            <CreateMemberModal
-              size="lg"
-              className="w-full h-12 rounded-xl font-bold text-sm bg-gradient-to-r from-[#FFA500] via-[#FFB800] to-[#FF8C00] text-[#171717] shadow-lg shadow-[#FFA500]/20 hover:shadow-xl hover:shadow-[#FFA500]/30 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
-            />
-          </div>
-        </div>
-
-        {/* ========================================================================= */}
-        {/* GRILLE BENTO DES STATISTIQUES (3 COLONNES COMPACTES SUR MOBILE)           */}
-        {/* ========================================================================= */}
-        <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
-          {/* Total Adhérents */}
-          <div className="relative rounded-2xl p-3 sm:p-5 bg-white/90 dark:bg-[#1A1A1A]/90 backdrop-blur-xl border border-[#E5E5E5] dark:border-white/[0.08] shadow-sm flex flex-col justify-between overflow-hidden">
-            <div className="flex items-center justify-between mb-1.5 sm:mb-3">
-              <span className="text-[11px] sm:text-xs font-semibold text-[#737373] dark:text-[#A3A3A3] truncate">
-                Total
-              </span>
-              <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-[#FFF4D6] dark:bg-[#FFA500]/15 text-[#FFA500] flex items-center justify-center shrink-0">
-                <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              </div>
-            </div>
-            <div>
-              <div className="font-heading font-extrabold text-xl sm:text-3xl text-[#171717] dark:text-white tracking-tight">
-                {members.length}
-              </div>
-              <div className="text-[10px] text-[#737373] dark:text-[#A3A3A3] font-medium hidden sm:block mt-0.5">
-                Adhérents inscrits
-              </div>
-            </div>
-          </div>
-
-          {/* Inscriptions */}
-          <div className="relative rounded-2xl p-3 sm:p-5 bg-white/90 dark:bg-[#1A1A1A]/90 backdrop-blur-xl border border-[#E5E5E5] dark:border-white/[0.08] shadow-sm flex flex-col justify-between overflow-hidden">
-            <div className="flex items-center justify-between mb-1.5 sm:mb-3">
-              <span className="text-[11px] sm:text-xs font-semibold text-[#16A34A] dark:text-emerald-400 truncate">
-                Inscrits
-              </span>
-              <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              </div>
-            </div>
-            <div>
-              <div className="font-heading font-extrabold text-xl sm:text-3xl text-[#171717] dark:text-white tracking-tight">
-                {totalInscrits}
-              </div>
-              <div className="text-[10px] text-[#737373] dark:text-[#A3A3A3] font-medium hidden sm:block mt-0.5">
-                Nouvelles adhésions
-              </div>
-            </div>
-          </div>
-
-          {/* Réinscriptions */}
-          <div className="relative rounded-2xl p-3 sm:p-5 bg-white/90 dark:bg-[#1A1A1A]/90 backdrop-blur-xl border border-[#E5E5E5] dark:border-white/[0.08] shadow-sm flex flex-col justify-between overflow-hidden">
-            <div className="flex items-center justify-between mb-1.5 sm:mb-3">
-              <span className="text-[11px] sm:text-xs font-semibold text-[#EAB308] dark:text-amber-400 truncate">
-                Réinscrits
-              </span>
-              <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-amber-50 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              </div>
-            </div>
-            <div>
-              <div className="font-heading font-extrabold text-xl sm:text-3xl text-[#171717] dark:text-white tracking-tight">
-                {totalReinscrits}
-              </div>
-              <div className="text-[10px] text-[#737373] dark:text-[#A3A3A3] font-medium hidden sm:block mt-0.5">
-                Renouvellements
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ========================================================================= */}
-        {/* SUPERVISION DES MEMBRES                                                   */}
-        {/* ========================================================================= */}
-        <div className="rounded-2xl sm:rounded-3xl border border-[#E5E5E5] dark:border-white/[0.08] bg-white/90 dark:bg-[#1A1A1A]/90 backdrop-blur-2xl shadow-xl shadow-black/[0.03] dark:shadow-black/25 overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-[#E5E5E5] dark:border-white/[0.08] flex items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="font-heading font-bold text-base sm:text-lg text-[#171717] dark:text-white">
-                  Supervision des Membres CJP
-                </h2>
-                <Badge variant="cjp" size="sm">
-                  {members.length} {members.length > 1 ? "adhérents" : "adhérent"}
-                </Badge>
-              </div>
-              <p className="text-xs text-[#737373] dark:text-[#A3A3A3] mt-0.5">
-                Vue d&apos;ensemble de tous les membres enregistrés à l&apos;échelle du club.
-              </p>
-            </div>
-            <div className="hidden sm:block">
-              <CreateMemberModal size="sm" />
-            </div>
-          </div>
-
-          <div>
-            {members.length === 0 ? (
-              <div className="p-8 sm:p-14 text-center flex flex-col items-center justify-center space-y-4">
-                <div className="relative">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-gradient-to-br from-[#FFA500]/20 via-[#FFA500]/10 to-transparent border border-[#FFA500]/30 flex items-center justify-center text-[#FFA500] shadow-lg shadow-[#FFA500]/10">
-                    <Users className="w-8 h-8 sm:w-10 sm:h-10" />
-                  </div>
-                  <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#FFA500] flex items-center justify-center text-[#171717] shadow-sm">
-                    <Sparkles className="w-3 h-3" />
-                  </div>
-                </div>
-
-                <div className="max-w-xs space-y-1">
-                  <h3 className="font-heading font-bold text-base sm:text-lg text-[#171717] dark:text-white">
-                    Aucun membre pour le moment
-                  </h3>
-                  <p className="text-xs text-[#737373] dark:text-[#A3A3A3] leading-relaxed">
-                    Le registre est prêt. Vous pouvez inscrire le premier adhérent de l&apos;association dès maintenant.
-                  </p>
-                </div>
-
-                <CreateMemberModal
-                  size="sm"
-                  className="mt-1 bg-gradient-to-r from-[#FFA500] to-[#FF8C00] text-[#171717] font-bold text-xs px-4 py-2 rounded-xl shadow-md"
-                />
-              </div>
+            {inscriptionsOpen ? (
+              <CreateMemberModal
+                size="lg"
+                className="w-full h-12 rounded-xl font-bold text-sm bg-gradient-to-r from-[#FFA500] via-[#FFB800] to-[#FF8C00] text-[#171717] shadow-lg shadow-[#FFA500]/20 hover:shadow-xl hover:shadow-[#FFA500]/30 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
+              />
             ) : (
-              <>
-                {/* VUE MOBILE (Cartes modernes pour smartphone) */}
-                <div className="block md:hidden p-3 space-y-2.5">
-                  {members.map((m) => {
-                    const initials =
-                      (m.first_name?.[0] || "") + (m.last_name?.[0] || "") || "CJP";
-
-                    return (
-                      <div
-                        key={m.id}
-                        className="p-3.5 rounded-2xl border border-[#E5E5E5] dark:border-white/[0.08] bg-white dark:bg-[#202020] shadow-xs space-y-3 transition-all active:scale-[0.99]"
-                      >
-                        <div className="flex items-start justify-between gap-2.5">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FFA500]/25 via-[#FFA500]/15 to-transparent border border-[#FFA500]/30 text-[#FFA500] font-heading font-bold text-sm flex items-center justify-center shrink-0">
-                              {initials}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <h4 className="font-heading font-bold text-sm text-[#171717] dark:text-white truncate">
-                                {m.first_name} {m.last_name}
-                              </h4>
-                              <p className="text-[11px] text-[#737373] dark:text-[#A3A3A3] font-mono truncate">
-                                {m.email}
-                              </p>
-                            </div>
-                          </div>
-                          <Badge
-                            variant={m.type_inscription === "inscrit" ? "success" : "warning"}
-                            size="sm"
-                            className="shrink-0 text-[10px]"
-                          >
-                            {m.type_inscription === "inscrit" ? "Inscrit" : "Réinscrit"}
-                          </Badge>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                          <span className="px-2 py-0.5 rounded-lg bg-[#F7F7F7] dark:bg-white/[0.05] border border-[#E5E5E5] dark:border-white/10 font-mono text-[11px] font-semibold text-[#171717] dark:text-white">
-                            {m.licence} - {m.programme}
-                          </span>
-                          {m.section && (
-                            <span className="px-2 py-0.5 rounded-lg bg-[#FFF4D6] dark:bg-[#FFA500]/15 text-[#FFA500] border border-[#FFA500]/30 text-[10px] font-semibold">
-                              {m.section}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="pt-2 border-t border-[#E5E5E5]/60 dark:border-white/[0.06] flex items-center justify-between text-[11px] text-[#737373] dark:text-[#A3A3A3]">
-                          <span>
-                            Inscrit par :{" "}
-                            <strong className="text-[#171717] dark:text-white font-medium">
-                              {m.added_by_name || "Système"}
-                            </strong>
-                          </span>
-                          <div className="flex items-center gap-1.5">
-                            <Badge variant="cjp" size="sm" dot className="text-[10px]">
-                              {m.status || "Actif"}
-                            </Badge>
-                            <div className="flex items-center gap-1 pl-1 border-l border-[#E5E5E5] dark:border-white/10">
-                              <EditMemberModal member={m} canChangeClass={true} />
-                              <MemberDeleteButton id={m.id} name={`${m.first_name} ${m.last_name}`} />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* VUE TABLETTE & DESKTOP (Tableau complet) */}
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full text-left text-xs sm:text-sm">
-                    <thead className="bg-[#F7F7F7] dark:bg-[#202020] border-b border-[#E5E5E5] dark:border-white/[0.08] text-[#737373] dark:text-[#A3A3A3] uppercase text-[11px] font-semibold tracking-wider">
-                      <tr>
-                        <th className="px-6 py-3.5">Adhérent</th>
-                        <th className="px-6 py-3.5">Classe & Section</th>
-                        <th className="px-6 py-3.5">Type</th>
-                        <th className="px-6 py-3.5">Inscrit par</th>
-                        <th className="px-6 py-3.5 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#E5E5E5] dark:divide-white/[0.06]">
-                      {members.map((m) => (
-                        <tr
-                          key={m.id}
-                          className="hover:bg-[#F7F7F7]/60 dark:hover:bg-white/[0.02] transition-colors"
-                        >
-                          <td className="px-6 py-4 font-medium text-[#171717] dark:text-white">
-                            <div className="font-semibold">{m.first_name} {m.last_name}</div>
-                            <div className="text-xs text-[#737373] dark:text-[#A3A3A3] font-mono mt-0.5">
-                              {m.email}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="font-medium">{m.licence} - {m.programme}</div>
-                            {m.section && (
-                              <div className="text-xs text-[#FFA500] font-medium mt-0.5">
-                                {m.section}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            <Badge
-                              variant={m.type_inscription === "inscrit" ? "success" : "warning"}
-                              size="sm"
-                            >
-                              {m.type_inscription === "inscrit" ? "Inscrit" : "Réinscrit"}
-                            </Badge>
-                          </td>
-                          <td className="px-6 py-4 text-xs text-[#737373] dark:text-[#A3A3A3]">
-                            {m.added_by_name || "Système"}
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <EditMemberModal member={m} canChangeClass={true} />
-                              <MemberDeleteButton id={m.id} name={`${m.first_name} ${m.last_name}`} />
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
+              <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-xs text-[#DC2626] dark:text-red-400 flex items-center justify-center gap-2 font-medium">
+                <Lock className="w-4 h-4 shrink-0" />
+                <span>Campagne d&apos;inscription actuellement clôturée par l&apos;Administration</span>
+              </div>
             )}
           </div>
         </div>
+
+        {/* ALERTE SI CAMPAGNE FERMÉE */}
+        {!inscriptionsOpen && (
+          <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 flex items-start gap-3 text-xs sm:text-sm text-amber-800 dark:text-amber-200 animate-fadeIn">
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-semibold">Inscriptions closes :</span> L&apos;administration a suspendu temporairement les adhésions. Le registre reste accessible pour consultation et régularisation des versements.
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* CARTES KPI FINANCIÈRES & SUPERVISION (4 COLONNES)                         */}
+        {/* ========================================================================= */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+          {/* 1. MONTANT TOTAL COLLECTÉ PAR L'UTILISATEUR */}
+          <Card className="border-l-4 border-l-[#FFA500] bg-white/90 dark:bg-[#1A1A1A]/90 shadow-sm">
+            <CardContent className="p-3.5 sm:p-5 flex items-center justify-between gap-1.5">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-[#737373] dark:text-[#A3A3A3] font-medium uppercase truncate">
+                  Collecté par Vous
+                </p>
+                <p className="font-heading font-bold text-base sm:text-xl text-[#171717] dark:text-[#FFA500] mt-0.5 font-mono truncate">
+                  {myCollecte.toLocaleString("fr-FR")} GNF
+                </p>
+                <p className="text-[10px] text-[#737373] dark:text-[#A3A3A3] mt-0.5 font-mono truncate">
+                  {myMembers.length} inscrit(s) par vous
+                </p>
+              </div>
+              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-[#FFA500] text-[#171717] flex items-center justify-center shadow-md shadow-[#FFA500]/25 shrink-0">
+                <Coins className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 2. DÉJÀ VERSÉ EN CAISSE */}
+          <Card className="border-l-4 border-l-[#16A34A] bg-white/90 dark:bg-[#1A1A1A]/90 shadow-sm">
+            <CardContent className="p-3.5 sm:p-5 flex items-center justify-between gap-1.5">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-emerald-700 dark:text-emerald-400 font-medium uppercase truncate">
+                  Déjà Versé
+                </p>
+                <p className="font-heading font-bold text-base sm:text-xl text-emerald-600 dark:text-emerald-400 mt-0.5 font-mono truncate">
+                  {totalVerse.toLocaleString("fr-FR")} GNF
+                </p>
+                <p className="text-[10px] text-[#737373] dark:text-[#A3A3A3] mt-0.5 font-mono truncate">
+                  {versements.length} remise(s) validée(s)
+                </p>
+              </div>
+              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-emerald-50 dark:bg-emerald-500/15 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-sm shrink-0">
+                <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 3. RESTE À VERSER (SOLDE EN MAIN) */}
+          <Card
+            className={`border-l-4 bg-white/90 dark:bg-[#1A1A1A]/90 shadow-sm ${
+              myReste > 0
+                ? "border-l-amber-500"
+                : "border-l-emerald-500"
+            }`}
+          >
+            <CardContent className="p-3.5 sm:p-5 flex items-center justify-between gap-1.5">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-[#737373] dark:text-[#A3A3A3] font-medium uppercase truncate">
+                  Reste à Verser
+                </p>
+                <p
+                  className={`font-heading font-bold text-base sm:text-xl mt-0.5 font-mono truncate ${
+                    myReste > 0
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-emerald-600 dark:text-emerald-400"
+                  }`}
+                >
+                  {myReste.toLocaleString("fr-FR")} GNF
+                </p>
+                <p className="text-[10px] text-[#737373] dark:text-[#A3A3A3] mt-0.5 truncate">
+                  {myReste === 0 && myCollecte > 0 ? "Tout est à jour ✅" : "Solde en main"}
+                </p>
+              </div>
+              <div
+                className={`w-9 h-9 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shadow-sm shrink-0 ${
+                  myReste > 0
+                    ? "bg-amber-50 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                    : "bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                }`}
+              >
+                <Receipt className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 4. TOTAL ADHÉRENTS CLUB */}
+          <Card className="border-l-4 border-l-blue-500 bg-white/90 dark:bg-[#1A1A1A]/90 shadow-sm">
+            <CardContent className="p-3.5 sm:p-5 flex items-center justify-between gap-1.5">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 font-medium uppercase truncate">
+                  Total Club CJP
+                </p>
+                <p className="font-heading font-bold text-base sm:text-xl text-[#171717] dark:text-white mt-0.5 font-mono truncate">
+                  {members.length} membres
+                </p>
+                <p className="text-[10px] text-[#737373] dark:text-[#A3A3A3] mt-0.5 truncate">
+                  {totalInscrits} inscrits • {totalReinscrits} réinscrits
+                </p>
+              </div>
+              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center shadow-sm shrink-0">
+                <Users className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* HISTORIQUE DES REÇUS DE VERSEMENTS VALIDÉS PAR L'ADMINISTRATION           */}
+        {/* ========================================================================= */}
+        {versements.length > 0 && (
+          <div className="rounded-2xl border border-emerald-200 dark:border-emerald-900/40 bg-white dark:bg-[#1c1c1c] p-4 sm:p-5 space-y-3 shadow-xs">
+            <div className="flex items-center justify-between gap-2 border-b border-[#E5E5E5] dark:border-[#333333] pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <Receipt className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-semibold text-xs sm:text-sm text-[#171717] dark:text-white">
+                    Reçus de Versements Validés ({versements.length})
+                  </h3>
+                  <p className="text-[11px] text-[#737373] dark:text-[#A3A3A3]">
+                    Remises de fonds enregistrées et validées par l&apos;administration CJP.
+                  </p>
+                </div>
+              </div>
+              <Badge variant="success" size="sm" className="font-mono">
+                Total : {totalVerse.toLocaleString("fr-FR")} GNF
+              </Badge>
+            </div>
+
+            <div className="divide-y divide-[#E5E5E5] dark:divide-[#333333]">
+              {versements.map((v) => (
+                <div
+                  key={v.id}
+                  className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-heading font-bold text-sm text-emerald-600 dark:text-emerald-400 font-mono">
+                        +{v.amount.toLocaleString("fr-FR")} GNF
+                      </span>
+                      <Badge variant="outline" size="sm" className="text-[10px]">
+                        Validé par {v.recorded_by_name || "Admin"}
+                      </Badge>
+                    </div>
+                    {v.notes && (
+                      <p className="text-[11px] text-[#737373] dark:text-[#A3A3A3] italic">
+                        &ldquo;{v.notes}&rdquo;
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-[#737373] dark:text-[#A3A3A3] flex items-center gap-1 font-mono">
+                    <Calendar className="w-3 h-3 text-[#FFA500]" />
+                    <span>
+                      {new Date(v.created_at).toLocaleDateString("fr-FR")} à{" "}
+                      {new Date(v.created_at).toLocaleTimeString("fr-FR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* SUPERVISION & GESTION DES MEMBRES AVEC RECHERCHE ET FILTRE SCOPE          */}
+        {/* ========================================================================= */}
+        <BureauMembersView members={members} currentUserId={session.id} />
       </main>
 
       <Footer />

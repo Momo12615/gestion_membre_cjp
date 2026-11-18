@@ -13,6 +13,8 @@ import {
   CheckCircle2,
   Calendar,
   ShieldCheck,
+  RotateCcw,
+  ArrowUpDown,
 } from "lucide-react";
 import { Membre, Organisateur, PermissionCode, SECTIONS_FORMATION, Versement } from "@/lib/types";
 import { TARIF_INSCRIPTION, TARIF_REINSCRIPTION } from "@/lib/constants";
@@ -66,11 +68,16 @@ export function AdminTabsView({
 
   // Filtres pour les versements
   const [versementSearch, setVersementSearch] = useState("");
+  const [versementRoleFilter, setVersementRoleFilter] = useState<string>("ALL");
 
-  // Chefs de classe
-  const chefsDeClasse = useMemo(() => {
-    return users.filter((u) => u.permission_code === "CHEF_DE_CLASSE");
-  }, [users]);
+  // Collecteurs d'inscriptions (Chefs de classe, Membres du Bureau, Admins, ou utilisateurs ayant inscrit des membres)
+  const collectors = useMemo(() => {
+    return users.filter((u) => {
+      const hasAddedMembers = members.some((m) => m.added_by === u.id);
+      const isEligibleRole = ["CHEF_DE_CLASSE", "BUREAU", "ADMIN"].includes(u.permission_code);
+      return isEligibleRole || hasAddedMembers;
+    });
+  }, [users, members]);
 
   // Filtres pour les utilisateurs
   const [userSearch, setUserSearch] = useState("");
@@ -78,11 +85,6 @@ export function AdminTabsView({
 
   // Filtres pour les organisateurs
   const [orgaSearch, setOrgaSearch] = useState("");
-
-  // Filtres pour les membres
-  const [memberSearch, setMemberSearch] = useState("");
-  const [memberTypeFilter, setMemberTypeFilter] = useState<string>("ALL");
-  const [memberSectionFilter, setMemberSectionFilter] = useState<string>("ALL");
 
   // Filtrage des utilisateurs
   const filteredUsers = useMemo(() => {
@@ -117,9 +119,49 @@ export function AdminTabsView({
     });
   }, [organisateurs, orgaSearch]);
 
-  // Filtrage des membres
+  // Filtres et tri pour les membres
+  const [memberSearch, setMemberSearch] = useState("");
+  const [memberTypeFilter, setMemberTypeFilter] = useState<string>("ALL");
+  const [memberSectionFilter, setMemberSectionFilter] = useState<string>("ALL");
+  const [memberClassFilter, setMemberClassFilter] = useState<string>("ALL");
+  const [memberRegistrarFilter, setMemberRegistrarFilter] = useState<string>("ALL");
+  const [memberSortBy, setMemberSortBy] = useState<"date_desc" | "date_asc" | "name_asc" | "class_asc" | "added_by_asc">("date_desc");
+
+  // Liste unique des classes
+  const uniqueClasses = useMemo(() => {
+    const classMap = new Map<string, number>();
+    members.forEach((m) => {
+      const className = m.licence && m.programme
+        ? `${m.licence} - ${m.programme}`
+        : m.licence || m.programme || "Classe non définie";
+      classMap.set(className, (classMap.get(className) || 0) + 1);
+    });
+    return Array.from(classMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [members]);
+
+  // Liste unique des personnes qui enregistrent (Inscrit par)
+  const uniqueRegistrars = useMemo(() => {
+    const regMap = new Map<string, { name: string; count: number }>();
+    members.forEach((m) => {
+      const key = m.added_by ? String(m.added_by) : (m.added_by_name || "Système");
+      const name = m.added_by_name || "Système";
+      const existing = regMap.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        regMap.set(key, { name, count: 1 });
+      }
+    });
+    return Array.from(regMap.entries())
+      .map(([id, data]) => ({ id, name: data.name, count: data.count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [members]);
+
+  // Filtrage et tri des membres
   const filteredMembers = useMemo(() => {
-    return members.filter((m) => {
+    const result = members.filter((m) => {
       const q = memberSearch.toLowerCase().trim();
       const matchSearch =
         !q ||
@@ -128,7 +170,8 @@ export function AdminTabsView({
         m.email.toLowerCase().includes(q) ||
         (m.phone && m.phone.toLowerCase().includes(q)) ||
         (m.licence && m.licence.toLowerCase().includes(q)) ||
-        (m.programme && m.programme.toLowerCase().includes(q));
+        (m.programme && m.programme.toLowerCase().includes(q)) ||
+        (m.added_by_name && m.added_by_name.toLowerCase().includes(q));
 
       const matchType =
         memberTypeFilter === "ALL" || m.type_inscription === memberTypeFilter;
@@ -136,9 +179,47 @@ export function AdminTabsView({
       const matchSection =
         memberSectionFilter === "ALL" || m.section === memberSectionFilter;
 
-      return matchSearch && matchType && matchSection;
+      const memberClassName = m.licence && m.programme
+        ? `${m.licence} - ${m.programme}`
+        : m.licence || m.programme || "Classe non définie";
+      const matchClass =
+        memberClassFilter === "ALL" || memberClassName === memberClassFilter;
+
+      const registrarKey = m.added_by ? String(m.added_by) : (m.added_by_name || "Système");
+      const matchRegistrar =
+        memberRegistrarFilter === "ALL" || registrarKey === memberRegistrarFilter;
+
+      return matchSearch && matchType && matchSection && matchClass && matchRegistrar;
     });
-  }, [members, memberSearch, memberTypeFilter, memberSectionFilter]);
+
+    // Tri
+    return result.sort((a, b) => {
+      if (memberSortBy === "name_asc") {
+        return (a.first_name + " " + a.last_name).localeCompare(b.first_name + " " + b.last_name);
+      }
+      if (memberSortBy === "class_asc") {
+        const classA = `${a.licence || ""} ${a.programme || ""}`;
+        const classB = `${b.licence || ""} ${b.programme || ""}`;
+        return classA.localeCompare(classB);
+      }
+      if (memberSortBy === "added_by_asc") {
+        return (a.added_by_name || "").localeCompare(b.added_by_name || "");
+      }
+      if (memberSortBy === "date_asc") {
+        return (new Date(a.joined_at || 0).getTime() - new Date(b.joined_at || 0).getTime()) || (a.id - b.id);
+      }
+      // date_desc (défaut)
+      return (new Date(b.joined_at || 0).getTime() - new Date(a.joined_at || 0).getTime()) || (b.id - a.id);
+    });
+  }, [
+    members,
+    memberSearch,
+    memberTypeFilter,
+    memberSectionFilter,
+    memberClassFilter,
+    memberRegistrarFilter,
+    memberSortBy,
+  ]);
 
   // Helper couleur pour la section
   const getSectionBadgeClass = (sec?: string | null) => {
@@ -153,19 +234,21 @@ export function AdminTabsView({
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* BARRE D'ONGLETS SUPÉRIEURE (GRILLE ADAPTÉE 100% MOBILE & DESKTOP) */}
-      <div className="bg-[#F7F7F7] dark:bg-[#1a1a1a] p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-[#E5E5E5] dark:border-[#383838] grid grid-cols-2 sm:grid-cols-4 gap-1 shadow-xs">
+    <div className="space-y-4 sm:space-y-6 pb-20 sm:pb-0">
+      {/* ========================================================================= */}
+      {/* 1. BARRE D'ONGLETS DESKTOP (HAUT DE PAGE)                                 */}
+      {/* ========================================================================= */}
+      <div className="hidden sm:grid bg-[#F7F7F7] dark:bg-[#1a1a1a] p-1.5 rounded-2xl border border-[#E5E5E5] dark:border-[#383838] grid-cols-4 gap-1.5 shadow-xs">
         <button
           type="button"
           onClick={() => setActiveTab("organisateurs")}
-          className={`flex items-center justify-center gap-1 sm:gap-2 px-1.5 sm:px-3 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-heading text-[11px] sm:text-sm font-semibold transition-all ${
+          className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-heading text-sm font-semibold transition-all cursor-pointer ${
             activeTab === "organisateurs"
               ? "bg-white dark:bg-[#262626] text-[#FFA500] shadow-xs ring-1 ring-[#FFA500]/30"
               : "text-[#737373] dark:text-[#A3A3A3] hover:text-[#171717] dark:hover:text-white"
           }`}
         >
-          <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+          <UserCheck className="w-4 h-4 shrink-0" />
           <span className="truncate">Comité</span>
           <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-[#E5E5E5] dark:bg-[#383838] text-[#171717] dark:text-white shrink-0">
             {organisateurs.length}
@@ -175,13 +258,13 @@ export function AdminTabsView({
         <button
           type="button"
           onClick={() => setActiveTab("users")}
-          className={`flex items-center justify-center gap-1 sm:gap-2 px-1.5 sm:px-3 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-heading text-[11px] sm:text-sm font-semibold transition-all ${
+          className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-heading text-sm font-semibold transition-all cursor-pointer ${
             activeTab === "users"
               ? "bg-white dark:bg-[#262626] text-[#FFA500] shadow-xs ring-1 ring-[#FFA500]/30"
               : "text-[#737373] dark:text-[#A3A3A3] hover:text-[#171717] dark:hover:text-white"
           }`}
         >
-          <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+          <Users className="w-4 h-4 shrink-0" />
           <span className="truncate">Comptes</span>
           <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-[#E5E5E5] dark:bg-[#383838] text-[#171717] dark:text-white shrink-0">
             {users.length}
@@ -191,13 +274,13 @@ export function AdminTabsView({
         <button
           type="button"
           onClick={() => setActiveTab("members")}
-          className={`flex items-center justify-center gap-1 sm:gap-2 px-1.5 sm:px-3 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-heading text-[11px] sm:text-sm font-semibold transition-all ${
+          className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-heading text-sm font-semibold transition-all cursor-pointer ${
             activeTab === "members"
               ? "bg-white dark:bg-[#262626] text-[#FFA500] shadow-xs ring-1 ring-[#FFA500]/30"
               : "text-[#737373] dark:text-[#A3A3A3] hover:text-[#171717] dark:hover:text-white"
           }`}
         >
-          <GraduationCap className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+          <GraduationCap className="w-4 h-4 shrink-0" />
           <span className="truncate">Membres</span>
           <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-[#E5E5E5] dark:bg-[#383838] text-[#171717] dark:text-white shrink-0">
             {members.length}
@@ -207,19 +290,125 @@ export function AdminTabsView({
         <button
           type="button"
           onClick={() => setActiveTab("versements")}
-          className={`flex items-center justify-center gap-1 sm:gap-2 px-1.5 sm:px-3 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-heading text-[11px] sm:text-sm font-semibold transition-all ${
+          className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-heading text-sm font-semibold transition-all cursor-pointer ${
             activeTab === "versements"
               ? "bg-white dark:bg-[#262626] text-[#FFA500] shadow-xs ring-1 ring-[#FFA500]/30"
               : "text-[#737373] dark:text-[#A3A3A3] hover:text-[#171717] dark:hover:text-white"
           }`}
         >
-          <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-[#FFA500]" />
+          <Coins className="w-4 h-4 shrink-0 text-[#FFA500]" />
           <span className="truncate">Versements</span>
           <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-[#FFA500]/20 text-[#FFA500] font-bold shrink-0">
             {versements.length}
           </span>
         </button>
       </div>
+
+      {/* ========================================================================= */}
+      {/* 2. BOTTOM NAVIGATION BAR MOBILE / ANDROID (FIXÉE EN BAS D'ÉCRAN)           */}
+      {/* ========================================================================= */}
+      <nav
+        aria-label="Navigation principale mobile"
+        className="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-[#141414]/95 backdrop-blur-xl border-t border-[#E5E5E5] dark:border-[#2b2b2b] shadow-2xl px-2 py-1 pb-[max(0.6rem,env(safe-area-inset-bottom))]"
+      >
+        <div className="grid grid-cols-4 gap-1">
+          {/* COMITÉ */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("organisateurs")}
+            className={`relative flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all cursor-pointer ${
+              activeTab === "organisateurs"
+                ? "text-[#FFA500]"
+                : "text-[#737373] dark:text-[#999999] hover:text-[#171717] dark:hover:text-white"
+            }`}
+          >
+            <div className="relative flex items-center justify-center">
+              <UserCheck className={`w-5 h-5 transition-transform ${activeTab === "organisateurs" ? "scale-110" : ""}`} />
+              <span className="absolute -top-1.5 -right-3 px-1 min-w-[15px] h-3.5 rounded-full text-[9px] font-mono font-bold flex items-center justify-center bg-[#E5E5E5] dark:bg-[#333333] text-[#171717] dark:text-white">
+                {organisateurs.length}
+              </span>
+            </div>
+            <span className={`text-[10px] mt-1 font-heading tracking-tight truncate max-w-full ${activeTab === "organisateurs" ? "font-bold text-[#FFA500]" : "font-medium"}`}>
+              Comité
+            </span>
+            {activeTab === "organisateurs" && (
+              <span className="absolute bottom-0 w-6 h-0.5 rounded-full bg-[#FFA500]" />
+            )}
+          </button>
+
+          {/* COMPTES */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("users")}
+            className={`relative flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all cursor-pointer ${
+              activeTab === "users"
+                ? "text-[#FFA500]"
+                : "text-[#737373] dark:text-[#999999] hover:text-[#171717] dark:hover:text-white"
+            }`}
+          >
+            <div className="relative flex items-center justify-center">
+              <Users className={`w-5 h-5 transition-transform ${activeTab === "users" ? "scale-110" : ""}`} />
+              <span className="absolute -top-1.5 -right-3 px-1 min-w-[15px] h-3.5 rounded-full text-[9px] font-mono font-bold flex items-center justify-center bg-[#E5E5E5] dark:bg-[#333333] text-[#171717] dark:text-white">
+                {users.length}
+              </span>
+            </div>
+            <span className={`text-[10px] mt-1 font-heading tracking-tight truncate max-w-full ${activeTab === "users" ? "font-bold text-[#FFA500]" : "font-medium"}`}>
+              Comptes
+            </span>
+            {activeTab === "users" && (
+              <span className="absolute bottom-0 w-6 h-0.5 rounded-full bg-[#FFA500]" />
+            )}
+          </button>
+
+          {/* MEMBRES */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("members")}
+            className={`relative flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all cursor-pointer ${
+              activeTab === "members"
+                ? "text-[#FFA500]"
+                : "text-[#737373] dark:text-[#999999] hover:text-[#171717] dark:hover:text-white"
+            }`}
+          >
+            <div className="relative flex items-center justify-center">
+              <GraduationCap className={`w-5 h-5 transition-transform ${activeTab === "members" ? "scale-110" : ""}`} />
+              <span className="absolute -top-1.5 -right-3 px-1 min-w-[15px] h-3.5 rounded-full text-[9px] font-mono font-bold flex items-center justify-center bg-[#E5E5E5] dark:bg-[#333333] text-[#171717] dark:text-white">
+                {members.length}
+              </span>
+            </div>
+            <span className={`text-[10px] mt-1 font-heading tracking-tight truncate max-w-full ${activeTab === "members" ? "font-bold text-[#FFA500]" : "font-medium"}`}>
+              Membres
+            </span>
+            {activeTab === "members" && (
+              <span className="absolute bottom-0 w-6 h-0.5 rounded-full bg-[#FFA500]" />
+            )}
+          </button>
+
+          {/* VERSEMENTS */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("versements")}
+            className={`relative flex flex-col items-center justify-center py-1 px-0.5 rounded-xl transition-all cursor-pointer ${
+              activeTab === "versements"
+                ? "text-[#FFA500]"
+                : "text-[#737373] dark:text-[#999999] hover:text-[#171717] dark:hover:text-white"
+            }`}
+          >
+            <div className="relative flex items-center justify-center">
+              <Coins className={`w-5 h-5 transition-transform ${activeTab === "versements" ? "scale-110 text-[#FFA500]" : "text-[#737373] dark:text-[#999999]"}`} />
+              <span className="absolute -top-1.5 -right-3 px-1 min-w-[15px] h-3.5 rounded-full text-[9px] font-mono font-bold flex items-center justify-center bg-[#FFA500]/25 text-[#FFA500]">
+                {versements.length}
+              </span>
+            </div>
+            <span className={`text-[10px] mt-1 font-heading tracking-tight truncate max-w-full ${activeTab === "versements" ? "font-bold text-[#FFA500]" : "font-medium"}`}>
+              Versements
+            </span>
+            {activeTab === "versements" && (
+              <span className="absolute bottom-0 w-6 h-0.5 rounded-full bg-[#FFA500]" />
+            )}
+          </button>
+        </div>
+      </nav>
 
       {/* ========================================================================= */}
       {/* ONGLET 1 : GESTION DES ORGANISATEURS (COMITÉ CJP)                        */}
@@ -446,41 +635,43 @@ export function AdminTabsView({
                         </Badge>
                       </div>
 
-                      {u.permission_code === "CHEF_DE_CLASSE" && (() => {
-                        const chefMembers = members.filter(
-                          (m) =>
-                            m.added_by === u.id ||
-                            (u.licence && u.programme && m.licence === u.licence && m.programme === u.programme)
-                        );
-                        const chefCollecte = chefMembers.reduce(
+                      {["CHEF_DE_CLASSE", "BUREAU", "ADMIN"].includes(u.permission_code) && (() => {
+                        const userMembers = members.filter((m) => m.added_by === u.id);
+                        const userVersements = versements.filter((v) => v.chef_id === u.id);
+                        if (u.permission_code !== "CHEF_DE_CLASSE" && userMembers.length === 0 && userVersements.length === 0) {
+                          return null;
+                        }
+
+                        const userCollecte = userMembers.reduce(
                           (acc, m) =>
                             acc + (m.type_inscription === "inscrit" ? TARIF_INSCRIPTION : TARIF_REINSCRIPTION),
                           0
                         );
-                        const chefVersements = versements.filter((v) => v.chef_id === u.id);
-                        const chefTotalVerse = chefVersements.reduce((acc, v) => acc + v.amount, 0);
-                        const chefReste = Math.max(0, chefCollecte - chefTotalVerse);
+                        const userTotalVerse = userVersements.reduce((acc, v) => acc + v.amount, 0);
+                        const userReste = Math.max(0, userCollecte - userTotalVerse);
 
                         return (
                           <div className="pt-2 border-t border-[#E5E5E5]/60 dark:border-[#333333] space-y-1.5">
                             <div className="flex items-center justify-between text-[11px]">
-                              <span className="text-[#737373] dark:text-[#A3A3A3]">Classe :</span>
+                              <span className="text-[#737373] dark:text-[#A3A3A3]">Périmètre :</span>
                               <span className="font-mono font-semibold text-[#FFA500] px-1.5 py-0.5 rounded bg-[#FFF4D6] dark:bg-[#FFA500]/15 border border-[#FFA500]/30 shrink-0">
-                                {u.classe || `${u.licence || "L2"} ${u.programme || "GL"}`}
+                                {u.permission_code === "CHEF_DE_CLASSE"
+                                  ? (u.classe || `${u.licence || "L2"} ${u.programme || "GL"}`)
+                                  : "Accès Global"}
                               </span>
                             </div>
                             <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
                               <div className="p-1 rounded bg-[#F7F7F7] dark:bg-[#252525]">
                                 <div className="text-[#737373] dark:text-[#A3A3A3]">Collecté</div>
-                                <div className="font-bold text-[#171717] dark:text-white font-mono">{chefCollecte.toLocaleString("fr-FR")}</div>
+                                <div className="font-bold text-[#171717] dark:text-white font-mono">{userCollecte.toLocaleString("fr-FR")}</div>
                               </div>
                               <div className="p-1 rounded bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400">
                                 <div>Versé</div>
-                                <div className="font-bold font-mono">{chefTotalVerse.toLocaleString("fr-FR")}</div>
+                                <div className="font-bold font-mono">{userTotalVerse.toLocaleString("fr-FR")}</div>
                               </div>
                               <div className="p-1 rounded bg-amber-50/70 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400">
                                 <div>Reste</div>
-                                <div className="font-bold font-mono">{chefReste.toLocaleString("fr-FR")}</div>
+                                <div className="font-bold font-mono">{userReste.toLocaleString("fr-FR")}</div>
                               </div>
                             </div>
                           </div>
@@ -488,19 +679,19 @@ export function AdminTabsView({
                       })()}
 
                       <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#333333] flex items-center justify-end gap-1.5">
-                        {u.permission_code === "CHEF_DE_CLASSE" && (() => {
-                          const chefMembers = members.filter(
-                            (m) =>
-                              m.added_by === u.id ||
-                              (u.licence && u.programme && m.licence === u.licence && m.programme === u.programme)
-                          );
-                          const chefCollecte = chefMembers.reduce(
+                        {["CHEF_DE_CLASSE", "BUREAU", "ADMIN"].includes(u.permission_code) && (() => {
+                          const userMembers = members.filter((m) => m.added_by === u.id);
+                          const userVersements = versements.filter((v) => v.chef_id === u.id);
+                          if (u.permission_code !== "CHEF_DE_CLASSE" && userMembers.length === 0 && userVersements.length === 0) {
+                            return null;
+                          }
+
+                          const userCollecte = userMembers.reduce(
                             (acc, m) =>
                               acc + (m.type_inscription === "inscrit" ? TARIF_INSCRIPTION : TARIF_REINSCRIPTION),
                             0
                           );
-                          const chefVersements = versements.filter((v) => v.chef_id === u.id);
-                          const chefTotalVerse = chefVersements.reduce((acc, v) => acc + v.amount, 0);
+                          const userTotalVerse = userVersements.reduce((acc, v) => acc + v.amount, 0);
 
                           return (
                             <RecordVersementModal
@@ -511,10 +702,21 @@ export function AdminTabsView({
                                   : u.email
                               }
                               chefEmail={u.email}
-                              classeName={u.classe || `${u.licence || "L2"} ${u.programme || ""}`}
-                              totalCollecte={chefCollecte}
-                              totalVerse={chefTotalVerse}
-                              versements={chefVersements}
+                              roleLabel={
+                                u.permission_code === "CHEF_DE_CLASSE"
+                                  ? "Chef de classe"
+                                  : u.permission_code === "BUREAU"
+                                  ? "Bureau Exécutif"
+                                  : "Administrateur"
+                              }
+                              classeName={
+                                u.permission_code === "CHEF_DE_CLASSE"
+                                  ? (u.classe || `${u.licence || "L2"} ${u.programme || ""}`)
+                                  : "Accès Global"
+                              }
+                              totalCollecte={userCollecte}
+                              totalVerse={userTotalVerse}
+                              versements={userVersements}
                             />
                           );
                         })()}
@@ -581,38 +783,42 @@ export function AdminTabsView({
                             </Badge>
                           </td>
                           <td className="px-6 py-4">
-                            {u.permission_code === "CHEF_DE_CLASSE" ? (() => {
-                              const chefMembers = members.filter(
-                                (m) =>
-                                  m.added_by === u.id ||
-                                  (u.licence && u.programme && m.licence === u.licence && m.programme === u.programme)
-                              );
-                              const chefCollecte = chefMembers.reduce(
+                            {(() => {
+                              const userMembers = members.filter((m) => m.added_by === u.id);
+                              const userVersements = versements.filter((v) => v.chef_id === u.id);
+                              const isChef = u.permission_code === "CHEF_DE_CLASSE";
+
+                              if (!isChef && userMembers.length === 0 && userVersements.length === 0) {
+                                return (
+                                  <span className="text-xs text-[#737373] dark:text-[#A3A3A3]">
+                                    Accès Global
+                                  </span>
+                                );
+                              }
+
+                              const userCollecte = userMembers.reduce(
                                 (acc, m) =>
                                   acc + (m.type_inscription === "inscrit" ? TARIF_INSCRIPTION : TARIF_REINSCRIPTION),
                                 0
                               );
-                              const chefVersements = versements.filter((v) => v.chef_id === u.id);
-                              const chefTotalVerse = chefVersements.reduce((acc, v) => acc + v.amount, 0);
-                              const chefReste = Math.max(0, chefCollecte - chefTotalVerse);
+                              const userTotalVerse = userVersements.reduce((acc, v) => acc + v.amount, 0);
+                              const userReste = Math.max(0, userCollecte - userTotalVerse);
 
                               return (
                                 <div className="space-y-1">
                                   <span className="font-mono font-semibold text-[#FFA500] px-2 py-0.5 rounded-lg bg-[#FFF4D6] dark:bg-[#FFA500]/15 border border-[#FFA500]/30 inline-block">
-                                    {u.classe || `${u.licence || "L2"} ${u.programme || "GL"}`}
+                                    {isChef ? (u.classe || `${u.licence || "L2"} ${u.programme || "GL"}`) : "Accès Global"}
                                   </span>
                                   <div className="text-[10px] text-[#737373] dark:text-[#A3A3A3] flex items-center gap-1.5 font-mono">
-                                    <span>Versé : <strong className="text-emerald-600 dark:text-emerald-400 font-semibold">{chefTotalVerse.toLocaleString("fr-FR")}</strong></span>
+                                    <span>Inscrits : <strong>{userMembers.length}</strong></span>
                                     <span>•</span>
-                                    <span>Reste : <strong className="text-amber-600 dark:text-amber-400 font-semibold">{chefReste.toLocaleString("fr-FR")}</strong></span>
+                                    <span>Versé : <strong className="text-emerald-600 dark:text-emerald-400 font-semibold">{userTotalVerse.toLocaleString("fr-FR")}</strong></span>
+                                    <span>•</span>
+                                    <span>Reste : <strong className="text-amber-600 dark:text-amber-400 font-semibold">{userReste.toLocaleString("fr-FR")}</strong></span>
                                   </div>
                                 </div>
                               );
-                            })() : (
-                              <span className="text-xs text-[#737373] dark:text-[#A3A3A3]">
-                                Accès Global
-                              </span>
-                            )}
+                            })()}
                           </td>
                           <td className="px-6 py-4">
                             <Badge
@@ -625,19 +831,19 @@ export function AdminTabsView({
                           </td>
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-1.5 shrink-0">
-                              {u.permission_code === "CHEF_DE_CLASSE" && (() => {
-                                const chefMembers = members.filter(
-                                  (m) =>
-                                    m.added_by === u.id ||
-                                    (u.licence && u.programme && m.licence === u.licence && m.programme === u.programme)
-                                );
-                                const chefCollecte = chefMembers.reduce(
+                              {["CHEF_DE_CLASSE", "BUREAU", "ADMIN"].includes(u.permission_code) && (() => {
+                                const userMembers = members.filter((m) => m.added_by === u.id);
+                                const userVersements = versements.filter((v) => v.chef_id === u.id);
+                                if (u.permission_code !== "CHEF_DE_CLASSE" && userMembers.length === 0 && userVersements.length === 0) {
+                                  return null;
+                                }
+
+                                const userCollecte = userMembers.reduce(
                                   (acc, m) =>
                                     acc + (m.type_inscription === "inscrit" ? TARIF_INSCRIPTION : TARIF_REINSCRIPTION),
                                   0
                                 );
-                                const chefVersements = versements.filter((v) => v.chef_id === u.id);
-                                const chefTotalVerse = chefVersements.reduce((acc, v) => acc + v.amount, 0);
+                                const userTotalVerse = userVersements.reduce((acc, v) => acc + v.amount, 0);
 
                                 return (
                                   <RecordVersementModal
@@ -648,10 +854,21 @@ export function AdminTabsView({
                                         : u.email
                                     }
                                     chefEmail={u.email}
-                                    classeName={u.classe || `${u.licence || "L2"} ${u.programme || ""}`}
-                                    totalCollecte={chefCollecte}
-                                    totalVerse={chefTotalVerse}
-                                    versements={chefVersements}
+                                    roleLabel={
+                                      u.permission_code === "CHEF_DE_CLASSE"
+                                        ? "Chef de classe"
+                                        : u.permission_code === "BUREAU"
+                                        ? "Bureau Exécutif"
+                                        : "Administrateur"
+                                    }
+                                    classeName={
+                                      u.permission_code === "CHEF_DE_CLASSE"
+                                        ? (u.classe || `${u.licence || "L2"} ${u.programme || ""}`)
+                                        : "Accès Global"
+                                    }
+                                    totalCollecte={userCollecte}
+                                    totalVerse={userTotalVerse}
+                                    versements={userVersements}
                                   />
                                 );
                               })()}
@@ -706,18 +923,70 @@ export function AdminTabsView({
           </CardHeader>
 
           {/* BARRE DE RECHERCHE & MULTI-FILTRES MEMBRE */}
-          <div className="p-2.5 sm:p-3.5 bg-[#F7F7F7]/50 dark:bg-[#1a1a1a]/50 border-b border-[#E5E5E5] dark:border-[#383838] flex flex-col md:flex-row gap-2.5 items-stretch md:items-center justify-between">
-            <div className="relative flex-1 max-w-md">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#737373]" />
-              <Input
-                placeholder="Rechercher nom, email, classe..."
-                value={memberSearch}
-                onChange={(e) => setMemberSearch(e.target.value)}
-                className="pl-8 text-xs py-1.5"
-              />
+          <div className="p-2.5 sm:p-3.5 bg-[#F7F7F7]/50 dark:bg-[#1a1a1a]/50 border-b border-[#E5E5E5] dark:border-[#383838] space-y-2.5">
+            <div className="flex flex-col md:flex-row gap-2.5 items-stretch md:items-center justify-between">
+              <div className="relative flex-1 max-w-md">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#737373]" />
+                <Input
+                  placeholder="Rechercher nom, email, classe, inscrit par..."
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                  className="pl-8 text-xs py-1.5"
+                />
+              </div>
+
+              {/* TRI RAPIDE */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[11px] text-[#737373] dark:text-[#A3A3A3] font-medium hidden sm:inline">
+                  Trier :
+                </span>
+                <select
+                  value={memberSortBy}
+                  onChange={(e) => setMemberSortBy(e.target.value as any)}
+                  className="px-2.5 py-1.5 text-xs rounded-lg border border-[#FFA500]/40 bg-[#FFF4D6]/30 dark:bg-[#FFA500]/10 text-[#FFA500] font-semibold cursor-pointer"
+                  title="Ordre d'affichage"
+                >
+                  <option value="date_desc">📅 Plus récents d&apos;abord</option>
+                  <option value="date_asc">📅 Plus anciens d&apos;abord</option>
+                  <option value="class_asc">🎓 Classe (A → Z)</option>
+                  <option value="added_by_asc">✍️ Inscrit par (A → Z)</option>
+                  <option value="name_asc">👤 Nom adhérent (A → Z)</option>
+                </select>
+              </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            {/* SÉLECTEURS DE FILTRES : CLASSE, INSCRIT PAR, SECTION, TYPE */}
+            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[#E5E5E5]/60 dark:border-[#2e2e2e]">
+              {/* FILTRE CLASSE */}
+              <select
+                value={memberClassFilter}
+                onChange={(e) => setMemberClassFilter(e.target.value)}
+                className="px-2.5 py-1 text-xs rounded-lg border border-[#E5E5E5] dark:border-[#383838] bg-white dark:bg-[#222222] text-[#171717] dark:text-white max-w-[190px] truncate"
+                title="Filtrer par Classe"
+              >
+                <option value="ALL">Toutes les classes ({uniqueClasses.length})</option>
+                {uniqueClasses.map((c) => (
+                  <option key={c.name} value={c.name}>
+                    {c.name} ({c.count})
+                  </option>
+                ))}
+              </select>
+
+              {/* FILTRE INSCRIT PAR (PERSONNE QUI ENREGISTRE) */}
+              <select
+                value={memberRegistrarFilter}
+                onChange={(e) => setMemberRegistrarFilter(e.target.value)}
+                className="px-2.5 py-1 text-xs rounded-lg border border-[#E5E5E5] dark:border-[#383838] bg-white dark:bg-[#222222] text-[#171717] dark:text-white max-w-[190px] truncate"
+                title="Filtrer par personne qui a enregistré"
+              >
+                <option value="ALL">Tous les enregistreurs ({uniqueRegistrars.length})</option>
+                {uniqueRegistrars.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    Inscrit par : {r.name} ({r.count})
+                  </option>
+                ))}
+              </select>
+
               {/* FILTRE SECTION */}
               <select
                 value={memberSectionFilter}
@@ -742,6 +1011,31 @@ export function AdminTabsView({
                 <option value="inscrit">Inscription (20K)</option>
                 <option value="reinscrit">Réinscription (10K)</option>
               </select>
+
+              {/* BOUTON RÉINITIALISER SI FILTRE ACTIF */}
+              {(memberSearch ||
+                memberClassFilter !== "ALL" ||
+                memberRegistrarFilter !== "ALL" ||
+                memberSectionFilter !== "ALL" ||
+                memberTypeFilter !== "ALL" ||
+                memberSortBy !== "date_desc") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMemberSearch("");
+                    setMemberClassFilter("ALL");
+                    setMemberRegistrarFilter("ALL");
+                    setMemberSectionFilter("ALL");
+                    setMemberTypeFilter("ALL");
+                    setMemberSortBy("date_desc");
+                  }}
+                  className="px-2.5 py-1 text-xs rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/20 hover:bg-red-100 dark:hover:bg-red-500/20 flex items-center gap-1 transition-colors cursor-pointer"
+                  title="Réinitialiser tous les filtres"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Effacer filtres</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -834,11 +1128,38 @@ export function AdminTabsView({
                   <table className="w-full text-left text-xs sm:text-sm">
                     <thead className="bg-[#F7F7F7] dark:bg-[#1f1f1f] border-b border-[#E5E5E5] dark:border-[#383838] text-[#737373] dark:text-[#A3A3A3] uppercase text-[11px] font-semibold tracking-wider">
                       <tr>
-                        <th className="px-6 py-3.5">Adhérent</th>
-                        <th className="px-6 py-3.5">Classe</th>
+                        <th
+                          className="px-6 py-3.5 cursor-pointer hover:text-[#FFA500] transition-colors select-none"
+                          onClick={() => setMemberSortBy(memberSortBy === "name_asc" ? "date_desc" : "name_asc")}
+                          title="Cliquer pour trier par nom"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span>Adhérent</span>
+                            <ArrowUpDown className={`w-3 h-3 ${memberSortBy === "name_asc" ? "text-[#FFA500]" : "opacity-40"}`} />
+                          </div>
+                        </th>
+                        <th
+                          className="px-6 py-3.5 cursor-pointer hover:text-[#FFA500] transition-colors select-none"
+                          onClick={() => setMemberSortBy(memberSortBy === "class_asc" ? "date_desc" : "class_asc")}
+                          title="Cliquer pour trier par classe"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span>Classe</span>
+                            <ArrowUpDown className={`w-3 h-3 ${memberSortBy === "class_asc" ? "text-[#FFA500]" : "opacity-40"}`} />
+                          </div>
+                        </th>
                         <th className="px-6 py-3.5">Section de Formation</th>
                         <th className="px-6 py-3.5">Type & Tarif</th>
-                        <th className="px-6 py-3.5">Inscrit par</th>
+                        <th
+                          className="px-6 py-3.5 cursor-pointer hover:text-[#FFA500] transition-colors select-none"
+                          onClick={() => setMemberSortBy(memberSortBy === "added_by_asc" ? "date_desc" : "added_by_asc")}
+                          title="Cliquer pour trier par personne ayant enregistré"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span>Inscrit par</span>
+                            <ArrowUpDown className={`w-3 h-3 ${memberSortBy === "added_by_asc" ? "text-[#FFA500]" : "opacity-40"}`} />
+                          </div>
+                        </th>
                         <th className="px-6 py-3.5">Statut</th>
                         <th className="px-6 py-3.5 text-right">Actions</th>
                       </tr>
@@ -921,39 +1242,37 @@ export function AdminTabsView({
       )}
 
       {/* ========================================================================= */}
-      {/* ONGLET 4 : SUIVI DES VERSEMENTS & REMISES DES CHEFS DE CLASSE             */}
+      {/* ONGLET 4 : SUIVI DES VERSEMENTS & REMISES (CHEFS, BUREAU & ADMINS)        */}
       {/* ========================================================================= */}
       {activeTab === "versements" && (() => {
-        const totalCollecteChefs = chefsDeClasse.reduce((sum, chef) => {
-          const chefMembers = members.filter(
-            (m) =>
-              m.added_by === chef.id ||
-              (chef.licence && chef.programme && m.licence === chef.licence && m.programme === chef.programme)
-          );
-          return (
-            sum +
-            chefMembers.reduce(
-              (acc, m) =>
-                acc + (m.type_inscription === "inscrit" ? TARIF_INSCRIPTION : TARIF_REINSCRIPTION),
-              0
-            )
-          );
-        }, 0);
+        const totalCollecteGlobal = members.reduce(
+          (acc, m) =>
+            acc + (m.type_inscription === "inscrit" ? TARIF_INSCRIPTION : TARIF_REINSCRIPTION),
+          0
+        );
+        const totalVerseGlobal = versements.reduce((sum, v) => sum + v.amount, 0);
+        const totalResteGlobal = Math.max(0, totalCollecteGlobal - totalVerseGlobal);
 
-        const totalVerseChefs = versements.reduce((sum, v) => sum + v.amount, 0);
-        const totalResteChefs = Math.max(0, totalCollecteChefs - totalVerseChefs);
+        // Répartition des collecteurs par rôle
+        const chefsCount = collectors.filter((c) => c.permission_code === "CHEF_DE_CLASSE").length;
+        const bureauCount = collectors.filter((c) => c.permission_code === "BUREAU").length;
+        const adminCount = collectors.filter((c) => c.permission_code === "ADMIN").length;
 
-        const filteredChefs = chefsDeClasse.filter((chef) => {
+        const filteredCollectors = collectors.filter((c) => {
           const q = versementSearch.toLowerCase().trim();
-          if (!q) return true;
-          return (
-            chef.email.toLowerCase().includes(q) ||
-            (chef.first_name && chef.first_name.toLowerCase().includes(q)) ||
-            (chef.last_name && chef.last_name.toLowerCase().includes(q)) ||
-            (chef.classe && chef.classe.toLowerCase().includes(q)) ||
-            (chef.licence && chef.licence.toLowerCase().includes(q)) ||
-            (chef.programme && chef.programme.toLowerCase().includes(q))
-          );
+          const matchSearch =
+            !q ||
+            c.email.toLowerCase().includes(q) ||
+            (c.first_name && c.first_name.toLowerCase().includes(q)) ||
+            (c.last_name && c.last_name.toLowerCase().includes(q)) ||
+            (c.classe && c.classe.toLowerCase().includes(q)) ||
+            (c.licence && c.licence.toLowerCase().includes(q)) ||
+            (c.programme && c.programme.toLowerCase().includes(q));
+
+          const matchRole =
+            versementRoleFilter === "ALL" || c.permission_code === versementRoleFilter;
+
+          return matchSearch && matchRole;
         });
 
         return (
@@ -963,17 +1282,17 @@ export function AdminTabsView({
               <CardHeader className="p-4 sm:p-5 border-b border-[#E5E5E5] dark:border-[#383838] bg-gradient-to-r from-[#FFF4D6]/30 via-transparent to-transparent dark:from-[#FFA500]/5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <CardTitle className="text-sm sm:text-base flex items-center gap-2">
                         <Coins className="w-4 h-4 text-[#FFA500]" />
                         Suivi des Versements & Remises de Fonds
                       </CardTitle>
                       <Badge variant="cjp" size="sm">
-                        {chefsDeClasse.length} Chefs
+                        {collectors.length} Collecteurs (Chefs, Bureau, Admins)
                       </Badge>
                     </div>
                     <CardDescription className="text-xs mt-0.5">
-                      Contrôlez les cotisations collectées par chaque chef de classe et enregistrez les montants remis à l&apos;administration.
+                      Contrôlez les cotisations encaissées lors des adhésions (Chefs de classe, Bureau Exécutif et Administrateurs) et enregistrez les montants remis à la caisse centrale.
                     </CardDescription>
                   </div>
                 </div>
@@ -982,132 +1301,222 @@ export function AdminTabsView({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-3">
                   <div className="p-3 rounded-xl bg-white dark:bg-[#202020] border border-[#E5E5E5] dark:border-[#383838]">
                     <div className="text-[11px] text-[#737373] dark:text-[#A3A3A3] uppercase font-medium">
-                      Total Collecté (Chefs)
+                      Total Recettes Collectées (Club)
                     </div>
                     <div className="font-heading font-bold text-base sm:text-lg text-[#171717] dark:text-white mt-0.5 font-mono">
-                      {totalCollecteChefs.toLocaleString("fr-FR")} GNF
+                      {totalCollecteGlobal.toLocaleString("fr-FR")} GNF
+                    </div>
+                    <div className="text-[10px] text-[#737373] dark:text-[#A3A3A3] mt-0.5">
+                      {members.length} adhésion(s) enregistrée(s)
                     </div>
                   </div>
 
                   <div className="p-3 rounded-xl bg-white dark:bg-[#202020] border border-emerald-200 dark:border-emerald-900/50">
                     <div className="text-[11px] text-emerald-700 dark:text-emerald-400 uppercase font-medium">
-                      Déjà Versé au Club
+                      Déjà Versé au Club (Caisse Centrale)
                     </div>
                     <div className="font-heading font-bold text-base sm:text-lg text-emerald-600 dark:text-emerald-400 mt-0.5 font-mono">
-                      {totalVerseChefs.toLocaleString("fr-FR")} GNF
+                      {totalVerseGlobal.toLocaleString("fr-FR")} GNF
+                    </div>
+                    <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">
+                      {versements.length} versement(s) validé(s)
                     </div>
                   </div>
 
                   <div className="p-3 rounded-xl bg-white dark:bg-[#202020] border border-amber-200 dark:border-amber-900/50">
                     <div className="text-[11px] text-amber-700 dark:text-amber-400 uppercase font-medium">
-                      Reste à Recouvrer
+                      Reste Global à Recouvrer
                     </div>
                     <div className="font-heading font-bold text-base sm:text-lg text-amber-600 dark:text-amber-400 mt-0.5 font-mono">
-                      {totalResteChefs.toLocaleString("fr-FR")} GNF
+                      {totalResteGlobal.toLocaleString("fr-FR")} GNF
+                    </div>
+                    <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                      En cours auprès des collecteurs
                     </div>
                   </div>
                 </div>
               </CardHeader>
 
-              {/* BARRE DE RECHERCHE */}
-              <div className="p-2.5 sm:p-3.5 bg-[#F7F7F7]/50 dark:bg-[#1a1a1a]/50 border-b border-[#E5E5E5] dark:border-[#383838] flex items-center justify-between gap-3">
+              {/* BARRE DE RECHERCHE & FILTRE DE RÔLE */}
+              <div className="p-2.5 sm:p-3.5 bg-[#F7F7F7]/50 dark:bg-[#1a1a1a]/50 border-b border-[#E5E5E5] dark:border-[#383838] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
                 <div className="relative flex-1 max-w-md">
                   <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#737373]" />
                   <Input
-                    placeholder="Rechercher un chef de classe, une promotion..."
+                    placeholder="Rechercher par nom, email, classe..."
                     value={versementSearch}
                     onChange={(e) => setVersementSearch(e.target.value)}
                     className="pl-8 text-xs py-1.5"
                   />
                 </div>
-                <div className="text-xs text-[#737373] dark:text-[#A3A3A3] hidden sm:block font-mono">
-                  {filteredChefs.length} classe(s)
+
+                {/* FILTRES PAR RÔLE */}
+                <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+                  <button
+                    type="button"
+                    onClick={() => setVersementRoleFilter("ALL")}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors shrink-0 ${
+                      versementRoleFilter === "ALL"
+                        ? "bg-[#FFA500] text-[#171717] font-semibold shadow-xs"
+                        : "bg-white dark:bg-[#262626] text-[#737373] dark:text-[#A3A3A3] hover:text-[#171717] border border-[#E5E5E5] dark:border-[#383838]"
+                    }`}
+                  >
+                    Tous ({collectors.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVersementRoleFilter("CHEF_DE_CLASSE")}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors shrink-0 ${
+                      versementRoleFilter === "CHEF_DE_CLASSE"
+                        ? "bg-[#FFA500] text-[#171717] font-semibold shadow-xs"
+                        : "bg-white dark:bg-[#262626] text-[#737373] dark:text-[#A3A3A3] hover:text-[#171717] border border-[#E5E5E5] dark:border-[#383838]"
+                    }`}
+                  >
+                    Chefs ({chefsCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVersementRoleFilter("BUREAU")}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors shrink-0 ${
+                      versementRoleFilter === "BUREAU"
+                        ? "bg-[#FFA500] text-[#171717] font-semibold shadow-xs"
+                        : "bg-white dark:bg-[#262626] text-[#737373] dark:text-[#A3A3A3] hover:text-[#171717] border border-[#E5E5E5] dark:border-[#383838]"
+                    }`}
+                  >
+                    Bureau ({bureauCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVersementRoleFilter("ADMIN")}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors shrink-0 ${
+                      versementRoleFilter === "ADMIN"
+                        ? "bg-[#FFA500] text-[#171717] font-semibold shadow-xs"
+                        : "bg-white dark:bg-[#262626] text-[#737373] dark:text-[#A3A3A3] hover:text-[#171717] border border-[#E5E5E5] dark:border-[#383838]"
+                    }`}
+                  >
+                    Admins ({adminCount})
+                  </button>
                 </div>
               </div>
 
-              {/* TABLEAU / CARTES DES CHEFS DE CLASSE */}
+              {/* TABLEAU / CARTES DES COLLECTEURS */}
               <CardContent className="p-0">
-                {filteredChefs.length === 0 ? (
+                {filteredCollectors.length === 0 ? (
                   <div className="p-8 text-center text-xs text-[#737373] dark:text-[#A3A3A3]">
-                    Aucun chef de classe trouvé pour cette recherche.
+                    Aucun collecteur trouvé pour cette recherche ou ce filtre.
                   </div>
                 ) : (
                   <>
                     {/* VUE MOBILE */}
                     <div className="block md:hidden p-2.5 space-y-2">
-                      {filteredChefs.map((chef) => {
-                        const chefMembers = members.filter(
-                          (m) =>
-                            m.added_by === chef.id ||
-                            (chef.licence && chef.programme && m.licence === chef.licence && m.programme === chef.programme)
-                        );
-                        const chefCollecte = chefMembers.reduce(
+                      {filteredCollectors.map((c) => {
+                        const userMembers = members.filter((m) => m.added_by === c.id);
+                        const userCollecte = userMembers.reduce(
                           (acc, m) =>
                             acc + (m.type_inscription === "inscrit" ? TARIF_INSCRIPTION : TARIF_REINSCRIPTION),
                           0
                         );
-                        const chefVersements = versements.filter((v) => v.chef_id === chef.id);
-                        const chefTotalVerse = chefVersements.reduce((acc, v) => acc + v.amount, 0);
-                        const chefReste = Math.max(0, chefCollecte - chefTotalVerse);
-                        const chefName = chef.first_name || chef.last_name
-                          ? `${chef.first_name || ""} ${chef.last_name || ""}`.trim()
-                          : chef.email;
+                        const userVersements = versements.filter((v) => v.chef_id === c.id);
+                        const userTotalVerse = userVersements.reduce((acc, v) => acc + v.amount, 0);
+                        const userReste = Math.max(0, userCollecte - userTotalVerse);
+                        const collectorName = c.first_name || c.last_name
+                          ? `${c.first_name || ""} ${c.last_name || ""}`.trim()
+                          : c.email;
+
+                        const isChef = c.permission_code === "CHEF_DE_CLASSE";
 
                         return (
                           <div
-                            key={chef.id}
+                            key={c.id}
                             className="p-3.5 rounded-xl border border-[#E5E5E5] dark:border-[#383838] bg-white dark:bg-[#1f1f1f] space-y-2.5 shadow-xs"
                           >
                             <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <h4 className="font-heading font-semibold text-xs sm:text-sm text-[#171717] dark:text-white">
-                                  {chefName}
-                                </h4>
-                                <span className="font-mono text-[11px] font-semibold text-[#FFA500]">
-                                  {chef.classe || `${chef.licence || "L2"} ${chef.programme || ""}`}
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <h4 className="font-heading font-semibold text-xs sm:text-sm text-[#171717] dark:text-white truncate">
+                                    {collectorName}
+                                  </h4>
+                                  <Badge
+                                    variant={
+                                      c.permission_code === "ADMIN"
+                                        ? "cjp"
+                                        : c.permission_code === "BUREAU"
+                                        ? "info"
+                                        : "warning"
+                                    }
+                                    size="sm"
+                                    className="text-[9px]"
+                                  >
+                                    {c.permission_code === "CHEF_DE_CLASSE"
+                                      ? "Chef de classe"
+                                      : c.permission_code === "BUREAU"
+                                      ? "Bureau"
+                                      : "Admin"}
+                                  </Badge>
+                                </div>
+                                <span className="font-mono text-[11px] text-[#FFA500] truncate block mt-0.5">
+                                  {isChef
+                                    ? (c.classe || `${c.licence || "L2"} ${c.programme || ""}`)
+                                    : "Accès Global (Tous niveaux)"}
                                 </span>
                               </div>
-                              {chefReste === 0 && chefCollecte > 0 ? (
-                                <Badge variant="success" size="sm" className="text-[10px]">
+                              {userReste === 0 && userCollecte > 0 ? (
+                                <Badge variant="success" size="sm" className="text-[10px] shrink-0">
                                   À jour ✅
                                 </Badge>
-                              ) : chefReste > 0 ? (
-                                <Badge variant="warning" size="sm" className="text-[10px]">
+                              ) : userReste > 0 ? (
+                                <Badge variant="warning" size="sm" className="text-[10px] shrink-0">
                                   Reste dû
                                 </Badge>
                               ) : null}
                             </div>
 
-                            <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
+                            <div className="grid grid-cols-4 gap-1 text-center text-[10px]">
+                              <div className="p-1.5 rounded-lg bg-[#F7F7F7] dark:bg-[#252525]">
+                                <div className="text-[#737373] dark:text-[#A3A3A3]">Inscrits</div>
+                                <div className="font-bold font-mono text-[#171717] dark:text-white mt-0.5">
+                                  {userMembers.length}
+                                </div>
+                              </div>
                               <div className="p-1.5 rounded-lg bg-[#F7F7F7] dark:bg-[#252525]">
                                 <div className="text-[#737373] dark:text-[#A3A3A3]">Collecté</div>
                                 <div className="font-bold font-mono text-[#171717] dark:text-white mt-0.5">
-                                  {chefCollecte.toLocaleString("fr-FR")}
+                                  {userCollecte.toLocaleString("fr-FR")}
                                 </div>
                               </div>
                               <div className="p-1.5 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400">
                                 <div>Versé</div>
                                 <div className="font-bold font-mono mt-0.5">
-                                  {chefTotalVerse.toLocaleString("fr-FR")}
+                                  {userTotalVerse.toLocaleString("fr-FR")}
                                 </div>
                               </div>
                               <div className="p-1.5 rounded-lg bg-amber-50/70 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400">
                                 <div>Reste</div>
                                 <div className="font-bold font-mono mt-0.5">
-                                  {chefReste.toLocaleString("fr-FR")}
+                                  {userReste.toLocaleString("fr-FR")}
                                 </div>
                               </div>
                             </div>
 
                             <div className="pt-2 border-t border-[#E5E5E5] dark:border-[#333333] flex items-center justify-end">
                               <RecordVersementModal
-                                chefId={chef.id}
-                                chefName={chefName}
-                                chefEmail={chef.email}
-                                classeName={chef.classe || `${chef.licence || "L2"} ${chef.programme || ""}`}
-                                totalCollecte={chefCollecte}
-                                totalVerse={chefTotalVerse}
-                                versements={chefVersements}
+                                chefId={c.id}
+                                chefName={collectorName}
+                                chefEmail={c.email}
+                                roleLabel={
+                                  c.permission_code === "CHEF_DE_CLASSE"
+                                    ? "Chef de classe"
+                                    : c.permission_code === "BUREAU"
+                                    ? "Bureau Exécutif"
+                                    : "Administrateur"
+                                }
+                                classeName={
+                                  isChef
+                                    ? (c.classe || `${c.licence || "L2"} ${c.programme || ""}`)
+                                    : "Accès Global"
+                                }
+                                totalCollecte={userCollecte}
+                                totalVerse={userTotalVerse}
+                                versements={userVersements}
                               />
                             </div>
                           </div>
@@ -1120,8 +1529,8 @@ export function AdminTabsView({
                       <table className="w-full text-left text-xs sm:text-sm">
                         <thead className="bg-[#F7F7F7] dark:bg-[#1f1f1f] border-b border-[#E5E5E5] dark:border-[#383838] text-[#737373] dark:text-[#A3A3A3] uppercase text-[11px] font-semibold tracking-wider">
                           <tr>
-                            <th className="px-6 py-3.5">Chef de Classe</th>
-                            <th className="px-6 py-3.5">Classe & Département</th>
+                            <th className="px-6 py-3.5">Collecteur / Responsable</th>
+                            <th className="px-6 py-3.5">Rôle & Périmètre</th>
                             <th className="px-6 py-3.5">Étudiants</th>
                             <th className="px-6 py-3.5">Total Collecté</th>
                             <th className="px-6 py-3.5">Déjà Versé</th>
@@ -1130,59 +1539,80 @@ export function AdminTabsView({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#E5E5E5] dark:divide-[#383838]">
-                          {filteredChefs.map((chef) => {
-                            const chefMembers = members.filter(
-                              (m) =>
-                                m.added_by === chef.id ||
-                                (chef.licence && chef.programme && m.licence === chef.licence && m.programme === chef.programme)
-                            );
-                            const chefCollecte = chefMembers.reduce(
+                          {filteredCollectors.map((c) => {
+                            const userMembers = members.filter((m) => m.added_by === c.id);
+                            const userCollecte = userMembers.reduce(
                               (acc, m) =>
                                 acc + (m.type_inscription === "inscrit" ? TARIF_INSCRIPTION : TARIF_REINSCRIPTION),
                               0
                             );
-                            const chefVersements = versements.filter((v) => v.chef_id === chef.id);
-                            const chefTotalVerse = chefVersements.reduce((acc, v) => acc + v.amount, 0);
-                            const chefReste = Math.max(0, chefCollecte - chefTotalVerse);
-                            const chefName = chef.first_name || chef.last_name
-                              ? `${chef.first_name || ""} ${chef.last_name || ""}`.trim()
-                              : chef.email;
+                            const userVersements = versements.filter((v) => v.chef_id === c.id);
+                            const userTotalVerse = userVersements.reduce((acc, v) => acc + v.amount, 0);
+                            const userReste = Math.max(0, userCollecte - userTotalVerse);
+                            const collectorName = c.first_name || c.last_name
+                              ? `${c.first_name || ""} ${c.last_name || ""}`.trim()
+                              : c.email;
+
+                            const isChef = c.permission_code === "CHEF_DE_CLASSE";
 
                             return (
                               <tr
-                                key={chef.id}
+                                key={c.id}
                                 className="hover:bg-[#F7F7F7]/60 dark:hover:bg-[#222222]/80 transition-colors"
                               >
                                 <td className="px-6 py-4">
                                   <div className="font-semibold text-[#171717] dark:text-white">
-                                    {chefName}
+                                    {collectorName}
                                   </div>
                                   <div className="text-xs text-[#737373] dark:text-[#A3A3A3] font-mono mt-0.5">
-                                    {chef.email} {chef.phone ? `• ${chef.phone}` : ""}
+                                    {c.email} {c.phone ? `• ${c.phone}` : ""}
                                   </div>
                                 </td>
                                 <td className="px-6 py-4">
-                                  <span className="font-mono font-semibold text-[#FFA500] px-2 py-0.5 rounded-lg bg-[#FFF4D6] dark:bg-[#FFA500]/15 border border-[#FFA500]/30 inline-block">
-                                    {chef.classe || `${chef.licence || "L2"} ${chef.programme || ""}`}
-                                  </span>
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <Badge
+                                        variant={
+                                          c.permission_code === "ADMIN"
+                                            ? "cjp"
+                                            : c.permission_code === "BUREAU"
+                                            ? "info"
+                                            : "warning"
+                                        }
+                                        size="sm"
+                                        className="text-[10px]"
+                                      >
+                                        {c.permission_code === "CHEF_DE_CLASSE"
+                                          ? "Chef de classe"
+                                          : c.permission_code === "BUREAU"
+                                          ? "Bureau"
+                                          : "Admin"}
+                                      </Badge>
+                                    </div>
+                                    <span className="font-mono text-xs font-semibold text-[#FFA500] inline-block">
+                                      {isChef
+                                        ? (c.classe || `${c.licence || "L2"} ${c.programme || ""}`)
+                                        : "Accès Global (Tous niveaux)"}
+                                    </span>
+                                  </div>
                                 </td>
                                 <td className="px-6 py-4 font-mono font-medium">
-                                  {chefMembers.length} inscrit(s)
+                                  {userMembers.length} inscrit(s)
                                 </td>
                                 <td className="px-6 py-4 font-mono font-bold text-[#171717] dark:text-white">
-                                  {chefCollecte.toLocaleString("fr-FR")} GNF
+                                  {userCollecte.toLocaleString("fr-FR")} GNF
                                 </td>
                                 <td className="px-6 py-4 font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                                  {chefTotalVerse.toLocaleString("fr-FR")} GNF
+                                  {userTotalVerse.toLocaleString("fr-FR")} GNF
                                 </td>
                                 <td className="px-6 py-4">
-                                  {chefReste === 0 && chefCollecte > 0 ? (
+                                  {userReste === 0 && userCollecte > 0 ? (
                                     <Badge variant="success" size="sm" className="font-mono">
                                       0 GNF (À jour ✅)
                                     </Badge>
-                                  ) : chefReste > 0 ? (
+                                  ) : userReste > 0 ? (
                                     <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
-                                      {chefReste.toLocaleString("fr-FR")} GNF
+                                      {userReste.toLocaleString("fr-FR")} GNF
                                     </span>
                                   ) : (
                                     <span className="text-xs text-[#737373] dark:text-[#A3A3A3] font-mono">
@@ -1193,13 +1623,24 @@ export function AdminTabsView({
                                 <td className="px-6 py-4 text-right">
                                   <div className="flex items-center justify-end">
                                     <RecordVersementModal
-                                      chefId={chef.id}
-                                      chefName={chefName}
-                                      chefEmail={chef.email}
-                                      classeName={chef.classe || `${chef.licence || "L2"} ${chef.programme || ""}`}
-                                      totalCollecte={chefCollecte}
-                                      totalVerse={chefTotalVerse}
-                                      versements={chefVersements}
+                                      chefId={c.id}
+                                      chefName={collectorName}
+                                      chefEmail={c.email}
+                                      roleLabel={
+                                        c.permission_code === "CHEF_DE_CLASSE"
+                                          ? "Chef de classe"
+                                          : c.permission_code === "BUREAU"
+                                          ? "Bureau Exécutif"
+                                          : "Administrateur"
+                                      }
+                                      classeName={
+                                        isChef
+                                          ? (c.classe || `${c.licence || "L2"} ${c.programme || ""}`)
+                                          : "Accès Global"
+                                      }
+                                      totalCollecte={userCollecte}
+                                      totalVerse={userTotalVerse}
+                                      versements={userVersements}
                                     />
                                   </div>
                                 </td>
@@ -1226,29 +1667,41 @@ export function AdminTabsView({
                       Journal Général des Versements Encaissés ({versements.length})
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      Historique de toutes les remises de cotisations remises par les chefs de classe.
+                      Historique complet de toutes les remises de cotisations effectuées par les responsables (Chefs, Bureau, Admins).
                     </CardDescription>
                   </div>
                 </div>
                 <Badge variant="success" size="md" className="font-mono shrink-0 self-start sm:self-auto">
-                  Total Encaissé : {totalVerseChefs.toLocaleString("fr-FR")} GNF
+                  Total Encaissé : {totalVerseGlobal.toLocaleString("fr-FR")} GNF
                 </Badge>
               </CardHeader>
               <CardContent className="p-0">
                 {versements.length === 0 ? (
                   <div className="p-8 text-center text-xs text-[#737373] dark:text-[#A3A3A3]">
-                    Aucun versement n&apos;a encore été enregistré. Cliquez sur « Versements » sur une ligne de chef de classe pour enregistrer la première remise.
+                    Aucun versement n&apos;a encore été enregistré. Cliquez sur « Versements » sur une ligne de responsable pour enregistrer la première remise.
                   </div>
                 ) : (
                   <div className="divide-y divide-[#E5E5E5] dark:divide-[#383838]">
                     {versements.map((v) => {
-                      const chef = users.find((u) => u.id === v.chef_id);
-                      const chefName = chef
-                        ? (chef.first_name || chef.last_name
-                          ? `${chef.first_name || ""} ${chef.last_name || ""}`.trim()
-                          : chef.email)
-                        : `Chef #${v.chef_id}`;
-                      const classeStr = chef?.classe || (chef?.licence && chef?.programme ? `${chef.licence} ${chef.programme}` : "");
+                      const collector = users.find((u) => u.id === v.chef_id);
+                      const collectorName = collector
+                        ? (collector.first_name || collector.last_name
+                          ? `${collector.first_name || ""} ${collector.last_name || ""}`.trim()
+                          : collector.email)
+                        : `Collecteur #${v.chef_id}`;
+
+                      const isChef = collector?.permission_code === "CHEF_DE_CLASSE";
+                      const roleBadgeText = isChef
+                        ? "Chef"
+                        : collector?.permission_code === "BUREAU"
+                        ? "Bureau"
+                        : collector?.permission_code === "ADMIN"
+                        ? "Admin"
+                        : "Collecteur";
+
+                      const classeStr = isChef
+                        ? (collector?.classe || (collector?.licence && collector?.programme ? `${collector.licence} ${collector.programme}` : ""))
+                        : "Accès Global";
 
                       return (
                         <div
@@ -1263,11 +1716,24 @@ export function AdminTabsView({
                               <Badge variant="outline" size="sm" className="text-[10px]">
                                 Reçu Officiel
                               </Badge>
+                              <Badge
+                                variant={
+                                  collector?.permission_code === "ADMIN"
+                                    ? "cjp"
+                                    : collector?.permission_code === "BUREAU"
+                                    ? "info"
+                                    : "warning"
+                                }
+                                size="sm"
+                                className="text-[9px]"
+                              >
+                                {roleBadgeText}
+                              </Badge>
                             </div>
 
                             <div className="text-[11px] text-[#737373] dark:text-[#A3A3A3] flex flex-wrap items-center gap-2">
                               <span>
-                                Reçu de : <strong className="text-[#171717] dark:text-white font-medium">{chefName}</strong>
+                                Reçu de : <strong className="text-[#171717] dark:text-white font-medium">{collectorName}</strong>
                                 {classeStr ? ` (${classeStr})` : ""}
                               </span>
                               <span>•</span>

@@ -121,21 +121,58 @@ export async function getClasseDashboardData(user: SessionUser) {
 // ============================================================================
 // 2. DONNÉES DU DASHBOARD BUREAU EXÉCUTIF (BATCH + CACHE ULTRA-RAPIDE)
 // ============================================================================
-export async function getBureauDashboardData() {
+export async function getBureauDashboardData(user?: SessionUser) {
+  const userId = user?.id;
+
   const fetcher = async () => {
     try {
-      const res = await db.execute(`
-        SELECT 
-          m.id, m.first_name, m.last_name, m.email, m.phone, 
-          m.licence, m.programme, m.promotion, m.role_club, 
-          m.status, m.type_inscription, m.section, m.added_by, m.joined_at,
-          COALESCE(u_added.first_name || ' ' || u_added.last_name, u_added.email, 'Système') as added_by_name
-        FROM membre m
-        LEFT JOIN user u_added ON m.added_by = u_added.id
-        ORDER BY m.joined_at DESC;
-      `);
+      const versementSql = userId
+        ? {
+            sql: `
+              SELECT 
+                v.id, v.chef_id, v.amount, v.notes, v.created_at,
+                COALESCE(u.first_name || ' ' || u.last_name, u.email, 'Admin') as recorded_by_name
+              FROM versement v
+              LEFT JOIN user u ON v.recorded_by = u.id
+              WHERE v.chef_id = ?
+              ORDER BY v.created_at DESC;
+            `,
+            args: [userId],
+          }
+        : {
+            sql: `
+              SELECT 
+                v.id, v.chef_id, v.amount, v.notes, v.created_at,
+                COALESCE(u.first_name || ' ' || u.last_name, u.email, 'Admin') as recorded_by_name
+              FROM versement v
+              LEFT JOIN user u ON v.recorded_by = u.id
+              ORDER BY v.created_at DESC;
+            `,
+            args: [],
+          };
 
-      const members: Membre[] = res.rows.map((r: any) => ({
+      const [settingRes, memberRes, versementRes] = await db.batch(
+        [
+          "SELECT value FROM app_setting WHERE key = 'inscriptions_ouvertes' LIMIT 1;",
+          `
+          SELECT 
+            m.id, m.first_name, m.last_name, m.email, m.phone, 
+            m.licence, m.programme, m.promotion, m.role_club, 
+            m.status, m.type_inscription, m.section, m.added_by, m.joined_at,
+            COALESCE(u_added.first_name || ' ' || u_added.last_name, u_added.email, 'Système') as added_by_name
+          FROM membre m
+          LEFT JOIN user u_added ON m.added_by = u_added.id
+          ORDER BY m.joined_at DESC;
+          `,
+          versementSql,
+        ],
+        "read"
+      );
+
+      const inscriptionsOpen =
+        settingRes.rows.length === 0 ? true : settingRes.rows[0].value === "1";
+
+      const members: Membre[] = memberRes.rows.map((r: any) => ({
         id: Number(r.id),
         first_name: r.first_name as string,
         last_name: r.last_name as string,
@@ -153,17 +190,33 @@ export async function getBureauDashboardData() {
         joined_at: r.joined_at as string,
       }));
 
-      return { members };
+      const versements: Versement[] = versementRes.rows.map((r: any) => ({
+        id: Number(r.id),
+        chef_id: Number(r.chef_id),
+        amount: Number(r.amount),
+        recorded_by: Number(r.recorded_by || 0),
+        recorded_by_name: (r.recorded_by_name as string) || "Admin",
+        notes: (r.notes as string) || null,
+        created_at: r.created_at as string,
+      }));
+
+      const totalVerse = versements.reduce((sum, v) => sum + v.amount, 0);
+
+      return { inscriptionsOpen, members, totalVerse, versements };
     } catch (err) {
       console.error("Erreur getBureauDashboardData:", err);
-      return { members: [] };
+      return { inscriptionsOpen: true, members: [], totalVerse: 0, versements: [] };
     }
   };
 
-  return unstable_cache(fetcher, ["bureau-dashboard-data"], {
-    revalidate: 15,
-    tags: ["membres", "bureau-data"],
-  })();
+  return unstable_cache(
+    fetcher,
+    [userId ? `bureau-dashboard-data-${userId}` : "bureau-dashboard-data"],
+    {
+      revalidate: 15,
+      tags: ["membres", "bureau-data", ...(userId ? [`versements-${userId}`] : [])],
+    }
+  )();
 }
 
 // ============================================================================
